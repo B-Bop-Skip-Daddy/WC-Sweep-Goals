@@ -2,8 +2,19 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>Guess the Goals · World Cup 2026</title>
+
+<!-- ---- installable web app (Add to Home Screen) ---- -->
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="theme-color" content="#06140d" />
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png" />
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Guess the Goals" />
 
 <!-- ================== CONFIG ==================================================
      Goals + matches pull LIVE from ESPN's free World Cup feed automatically.
@@ -144,6 +155,35 @@
   .hint{margin-top:9px;font:600 10.5px/1.4 Arial;color:var(--muted);text-align:center}
 
   @media (prefers-reduced-motion:reduce){.dot{animation:none}}
+
+  /* ---- install: permanent button in controls ---- */
+  .installbtn{margin-top:12px;width:100%;border:1px solid rgba(245,197,24,.4);cursor:pointer;border-radius:12px;padding:12px;
+    font:700 11px/1 Arial;letter-spacing:.1em;text-transform:uppercase;color:var(--gold);
+    background:rgba(245,197,24,.07);display:flex;align-items:center;justify-content:center;gap:8px}
+  .installbtn:active{transform:translateY(1px)}
+
+  /* ---- install: first-open slide-up banner ---- */
+  .install-sheet{position:fixed;left:0;right:0;bottom:0;z-index:50;display:flex;justify-content:center;
+    padding:12px 12px calc(12px + env(safe-area-inset-bottom));
+    transform:translateY(140%);transition:transform .45s cubic-bezier(.2,.8,.2,1);pointer-events:none}
+  .install-sheet.show{transform:translateY(0);pointer-events:auto}
+  .install-card{width:100%;max-width:476px;background:var(--card);border:1px solid rgba(245,197,24,.3);
+    border-radius:18px;padding:16px;box-shadow:0 -10px 40px rgba(0,0,0,.55);position:relative}
+  .install-card .x{position:absolute;top:10px;right:12px;border:0;background:transparent;color:var(--muted);
+    font:700 20px/1 Arial;cursor:pointer;padding:4px;line-height:1}
+  .install-row{display:flex;align-items:center;gap:13px}
+  .install-row img{width:54px;height:54px;border-radius:13px;flex:0 0 auto;box-shadow:0 4px 14px rgba(0,0,0,.45)}
+  .install-row .it{flex:1;min-width:0}
+  .install-row .it h3{font:800 16px/1.1 "Arial Narrow",Arial;text-transform:uppercase;letter-spacing:.02em}
+  .install-row .it p{font:600 11.5px/1.35 Arial;color:var(--muted);margin-top:3px}
+  .install-cta{margin-top:13px;width:100%;border:0;cursor:pointer;border-radius:12px;padding:13px;
+    font:800 13px/1 Arial;letter-spacing:.04em;text-transform:uppercase;color:#06140d;
+    background:linear-gradient(180deg,var(--gold),var(--gold-deep));box-shadow:0 8px 22px rgba(245,197,24,.28)}
+  .install-cta:active{transform:translateY(1px)}
+  .ios-steps{margin-top:12px;font:600 12px/1.5 Arial;color:#bfe6cf}
+  .ios-steps b{color:#fff}
+  .ios-steps .share-ic{display:inline-block;color:var(--gold);font-weight:800}
+  .hidden{display:none !important}
 </style>
 </head>
 <body>
@@ -213,6 +253,26 @@
     <button class="refresh" id="refreshBtn">↻ Refresh from ESPN</button>
     <button class="share" id="shareBtn">📲 Share to WhatsApp</button>
     <div class="hint" id="hint">Numbers update on their own. Edit them to play out a what-if — tap Refresh to snap back to live.</div>
+    <button class="installbtn hidden" id="installBtn">📲 Add to Home Screen</button>
+  </div>
+</div>
+
+<!-- ---- first-open install nudge (shown once) ---- -->
+<div class="install-sheet" id="installSheet" role="dialog" aria-label="Add to Home Screen">
+  <div class="install-card">
+    <button class="x" id="installClose" aria-label="Dismiss">×</button>
+    <div class="install-row">
+      <img src="icon-192.png" alt="Guess the Goals icon" />
+      <div class="it">
+        <h3>Add to Home Screen</h3>
+        <p>Get a one-tap shortcut to the live board — no browser, no link to dig up.</p>
+      </div>
+    </div>
+    <button class="install-cta" id="installAccept">Install</button>
+    <div class="ios-steps hidden" id="iosSteps">
+      Tap <b><span class="share-ic">⎙</span> Share</b> at the bottom of Safari, then choose
+      <b>“Add to Home Screen.”</b>
+    </div>
   </div>
 </div>
 
@@ -366,6 +426,82 @@
   render();
   fetchLive();
   setInterval(()=>{ if(!manualOverride) fetchLive(); }, 60000);
+})();
+</script>
+
+<!-- ---- install / Add to Home Screen ---- -->
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const DISMISS_KEY = "gtg_install_dismissed";
+
+  // register the service worker (enables install + offline)
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(()=>{}));
+  }
+
+  const isStandalone = window.matchMedia("(display-mode: standalone)").matches
+    || window.navigator.standalone === true;
+  const ua = navigator.userAgent || "";
+  const isIOS = /iphone|ipad|ipod/i.test(ua)
+    || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1); // iPadOS
+  const isSafari = isIOS && /safari/i.test(ua) && !/crios|fxios|edgios/i.test(ua);
+
+  const sheet = $("installSheet"), iosSteps = $("iosSteps"),
+        accept = $("installAccept"), closeBtn = $("installClose"), btn = $("installBtn");
+
+  let deferred = null;                 // Android/Chrome beforeinstallprompt event
+  const dismissed = () => localStorage.getItem(DISMISS_KEY) === "1";
+  const markDismissed = () => { try{ localStorage.setItem(DISMISS_KEY, "1"); }catch(e){} };
+
+  // Already installed → never show anything.
+  if (isStandalone) return;
+
+  function openSheet(){ sheet.classList.add("show"); }
+  function closeSheet(){ sheet.classList.remove("show"); }
+
+  // Chrome/Android: real install prompt available.
+  window.addEventListener("beforeinstallprompt", e => {
+    e.preventDefault();
+    deferred = e;
+    btn.classList.remove("hidden");          // permanent button always works now
+    iosSteps.classList.add("hidden");
+    accept.classList.remove("hidden");
+    if (!dismissed()) setTimeout(openSheet, 1200);   // first-open nudge
+  });
+
+  async function doInstall(){
+    if (!deferred) return false;
+    deferred.prompt();
+    await deferred.userChoice;
+    deferred = null;
+    closeSheet();
+    btn.classList.add("hidden");
+    return true;
+  }
+
+  accept.addEventListener("click", () => { markDismissed(); doInstall(); });
+  closeBtn.addEventListener("click", () => { markDismissed(); closeSheet(); });
+
+  // Installed during this session → tidy up.
+  window.addEventListener("appinstalled", () => { closeSheet(); btn.classList.add("hidden"); markDismissed(); });
+
+  // iOS Safari: no programmatic prompt — show the manual steps instead.
+  if (isIOS) {
+    btn.classList.remove("hidden");          // permanent button reveals the steps
+    if (isSafari && !dismissed()) {
+      accept.classList.add("hidden");
+      iosSteps.classList.remove("hidden");
+      setTimeout(openSheet, 1200);
+    }
+  }
+
+  // Permanent button: install on Android, or re-open the steps everywhere else.
+  btn.addEventListener("click", async () => {
+    if (deferred) { doInstall(); return; }
+    if (isIOS) { accept.classList.add("hidden"); iosSteps.classList.remove("hidden"); }
+    openSheet();
+  });
 })();
 </script>
 </body>
