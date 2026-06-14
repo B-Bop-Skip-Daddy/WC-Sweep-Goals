@@ -1,7 +1,7 @@
 /* Guess the Goals — service worker.
    Makes the app installable and loads the shell offline. Live ESPN data
    still goes to the network; we never cache that feed. */
-const CACHE = "gtg-v1";
+const CACHE = "gtg-v2";
 const SHELL = [
   "./",
   "./index.html",
