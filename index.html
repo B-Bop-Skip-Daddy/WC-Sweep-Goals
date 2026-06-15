@@ -174,9 +174,6 @@
   .rowdetail .ds .dl{font:700 9px/1.2 Arial;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
   .rowdetail .ds .dv{font:800 22px/1 "Arial Narrow",Arial;font-variant-numeric:tabular-nums;margin-top:5px;color:var(--ink)}
   .rowdetail .ds .du{font:600 9px/1.25 Arial;color:var(--muted);margin-top:4px}
-  .rowdetail .verdict{font:600 12px/1.45 Arial;color:#bfe6cf;text-align:center;
-    border-top:1px solid var(--chalk);padding-top:10px}
-  .rowdetail .verdict b{color:#fff}
 
   .foot{padding:12px 20px 18px;border-top:1px solid var(--chalk);
     display:flex;align-items:center;justify-content:space-between;gap:10px}
@@ -428,27 +425,11 @@
                   : stillNeed <= 0 ? "already past"
                   : `${stillNeed} in ${remaining} left`;
 
-    let verdict;
-    if (remaining <= 0){
-      verdict = `Final tally: <b>${goals}</b> goals — guess was <b>${p.guess}</b>.`;
-    } else if (stillNeed <= 0){
-      verdict = `Already past <b>${p.guess}</b> — now rooting for the goals to dry up.`;
-    } else if (gpg == null){
-      verdict = `Banking on about <b>${f(implied)}</b> a game once the balls start rolling.`;
-    } else {
-      const diff = reqPace - gpg;
-      if (reqPace > 6) verdict = `Needs a goal avalanche — <b>${stillNeed}</b> in <b>${remaining}</b> is a tall order.`;
-      else if (Math.abs(diff) < 0.12) verdict = `Right on the current pace — sit back and enjoy.`;
-      else if (diff > 0) verdict = `Needs goals to flow — rooting for <b>open, high-scoring</b> games.`;
-      else verdict = `Needs the scoring to cool — rooting for <b>tight, low-scoring</b> games.`;
-    }
-
     return `<div class="dgrid">
         <div class="ds"><div class="dl">What was needed</div><div class="dv">${f(implied)}</div><div class="du">per game · all ${total}</div></div>
         <div class="ds"><div class="dl">Pace so far</div><div class="dv">${f(gpg)}</div><div class="du">${played} game${played===1?"":"s"} in</div></div>
         <div class="ds"><div class="dl">Needs now</div><div class="dv">${needVal}</div><div class="du">${esc(needSub)}</div></div>
-      </div>
-      <div class="verdict">${verdict}</div>`;
+      </div>`;
   }
 
   async function loadDetails(id){

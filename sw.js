@@ -1,7 +1,7 @@
 /* Guess the Goals — service worker.
    Makes the app installable and loads the shell offline. Live ESPN data
    still goes to the network; we never cache that feed. */
-const CACHE = "gtg-v2";
+const CACHE = "gtg-v3";
 const SHELL = [
   "./",
   "./index.html",
@@ -31,20 +31,37 @@ self.addEventListener("fetch", e => {
 
   // Never cache the live data feed — always go to network.
   if (url.hostname.includes("espn.com")) return;
+  if (url.origin !== self.location.origin) return;
 
-  // App shell: cache-first, then update in the background.
-  if (url.origin === self.location.origin) {
+  // The app's HTML: network-first, so a new deploy shows on a single refresh.
+  // Falls back to the cached page when offline.
+  const isHTML = req.mode === "navigate"
+    || url.pathname.endsWith("/")
+    || url.pathname.endsWith(".html");
+  if (isHTML) {
     e.respondWith(
-      caches.match(req).then(cached => {
-        const live = fetch(req).then(res => {
-          if (res && res.ok) {
-            const copy = res.clone();
-            caches.open(CACHE).then(c => c.put(req, copy));
-          }
-          return res;
-        }).catch(() => cached);
-        return cached || live;
-      })
+      fetch(req).then(res => {
+        if (res && res.ok) {
+          const copy = res.clone();
+          caches.open(CACHE).then(c => c.put(req, copy));
+        }
+        return res;
+      }).catch(() => caches.match(req).then(c => c || caches.match("./index.html")))
     );
+    return;
   }
+
+  // Other shell assets (icons, manifest): cache-first, refresh in background.
+  e.respondWith(
+    caches.match(req).then(cached => {
+      const live = fetch(req).then(res => {
+        if (res && res.ok) {
+          const copy = res.clone();
+          caches.open(CACHE).then(c => c.put(req, copy));
+        }
+        return res;
+      }).catch(() => cached);
+      return cached || live;
+    })
+  );
 });
