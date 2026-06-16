@@ -129,8 +129,8 @@
   /* ---- recent results (last matchday) ---- */
   .lg .clk.ft{color:var(--muted);background:rgba(255,255,255,.08)}
   .results{padding:12px 14px 2px;display:flex;flex-direction:column;gap:8px}
-  .rhead{display:flex;align-items:center;justify-content:space-between;gap:8px}
-  .rtitle{display:flex;align-items:baseline;gap:8px;min-width:0;
+  .rhead{display:flex;align-items:center;gap:8px;cursor:pointer}
+  .rtitle{display:flex;align-items:baseline;gap:8px;min-width:0;flex:1 1 auto;
     font:700 10px/1 Arial;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
   .rtitle .cal{letter-spacing:.02em;text-transform:none;font-size:11.5px;font-weight:700;color:#bfe6cf;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -138,10 +138,15 @@
   .results .nav button{border:0;background:rgba(255,255,255,.06);color:#bfe6cf;cursor:pointer;
     width:26px;height:26px;border-radius:8px;font:800 15px/1 Arial}
   .results .nav button:disabled{opacity:.28;cursor:default}
-  .ripple{font:600 11.5px/1.45 Arial;color:#bfe6cf;padding:0 2px 2px}
+  .rtoggle{flex:0 0 auto;border:0;background:rgba(255,255,255,.06);color:#bfe6cf;cursor:pointer;
+    width:26px;height:26px;border-radius:8px;font:800 12px/1 Arial}
+  /* subheading: each segment stays whole, so it can never drop a lone-word widow */
+  .ripple{font:600 11.5px/1.45 Arial;color:#bfe6cf;padding:0 2px 2px;cursor:pointer;text-wrap:pretty}
   .ripple b{color:#fff;font-weight:800}
   .ripple .up{color:var(--good);font-weight:800}
   .ripple .down{color:var(--bad);font-weight:800}
+  .rseg{white-space:nowrap}
+  .rsep{color:var(--muted)}
   .rlist{display:flex;flex-direction:column;gap:6px}
   .lgwrap.result{background:rgba(255,255,255,.04);border-color:var(--chalk)}
   .lgwrap.result .lgdetail{border-top-color:var(--chalk)}
@@ -362,6 +367,7 @@
   let liveGames = [];        // matches currently in progress (from ESPN)
   let completedMatches = []; // every finished match this tournament (from ESPN)
   let selectedDayKey = null; // which matchday the results panel is showing (null = latest)
+  let resultsOpen = false;   // results drop-down: header+ripple always show, list folds away
   let pollTimer = null;
   const expanded = new Set();   // live event ids whose detail panel is open
   const expandedResults = new Set();   // finished event ids whose detail panel is open
@@ -568,21 +574,25 @@
     const projAfter  = projAt(after);
     const projBefore = projAt(before);
 
-    let ripple = `<b>${after.dayGoals}</b> goal${after.dayGoals===1?"":"s"}` +
-                 ` · ${after.dayMatches} game${after.dayMatches===1?"":"s"}`;
+    // build the subheading as whole, non-breaking segments → no lone-word widows
+    const segs = [
+      `<b>${after.dayGoals}</b> goal${after.dayGoals===1?"":"s"}`,
+      `${after.dayMatches} game${after.dayMatches===1?"":"s"}`
+    ];
     if(projAfter!==null){
       if(projBefore===null){
-        ripple += ` · first projection <b>${projAfter}</b>`;
+        segs.push(`first projection <b>${projAfter}</b>`);
       } else {
         const diff = projAfter - projBefore;
         const cls  = diff>0 ? "up" : diff<0 ? "down" : "";
         const arr  = diff>0 ? "▲" : diff<0 ? "▼" : "■";
-        ripple += ` · projection <b>${projBefore}</b> → <b>${projAfter}</b>` +
-                  ` <span class="${cls}">${arr}${diff>0?"+":""}${diff}</span>`;
+        segs.push(`projection <b>${projBefore}</b> → <b>${projAfter}</b> <span class="${cls}">${arr}${diff>0?"+":""}${diff}</span>`);
       }
       const ldB = leaderFor(projBefore), ldA = leaderFor(projAfter);
-      if(ldB && ldA && ldB!==ldA) ripple += ` · lead ${esc(ldB)} → ${esc(ldA)}`;
+      if(ldB && ldA && ldB!==ldA) segs.push(`lead ${esc(ldB)} → ${esc(ldA)}`);
+      else if(ldA)               segs.push(`lead still ${esc(ldA)}`);
     }
+    const ripple = segs.map(s => `<span class="rseg">${s}</span>`).join(`<span class="rsep"> · </span>`);
 
     box.innerHTML =
       `<div class="rhead">
@@ -591,26 +601,26 @@
           <button data-dir="-1"${i===0?" disabled":""} aria-label="Earlier day">‹</button>
           <button data-dir="1"${i===days.length-1?" disabled":""} aria-label="Later day">›</button>
         </div>
+        <button class="rtoggle" aria-expanded="${resultsOpen}" aria-label="${resultsOpen?"Hide":"Show"} results">${resultsOpen?"▴":"▾"}</button>
       </div>
-      <div class="ripple">${ripple}</div>
-      <div class="rlist">` +
-      day.matches.map(m => {
-        const open = expandedResults.has(m.id);
-        return `<div class="lgwrap result" data-id="${esc(m.id)}">
-          <div class="lg" role="button" tabindex="0" aria-expanded="${open}">
-            <span class="side home">${flag(m.hl)}<b>${esc(m.home)}</b></span>
-            <span class="sc">${m.hs} – ${m.as}</span>
-            <span class="side away"><b>${esc(m.away)}</b>${flag(m.al)}</span>
-            <span class="clk ft">${esc(m.detail||"FT")}</span>
-            <span class="cv">${open?"▴":"▾"}</span>
-          </div>
-          <div class="lgdetail"${open?"":" hidden"}>${open?detailHTML(detailsCache[m.id]):""}</div>
-        </div>`;
-      }).join("") +
-      `</div>`;
+      <div class="ripple">${ripple}</div>` +
+      (resultsOpen ? `<div class="rlist">` +
+        day.matches.map(m => {
+          const open = expandedResults.has(m.id);
+          return `<div class="lgwrap result" data-id="${esc(m.id)}">
+            <div class="lg" role="button" tabindex="0" aria-expanded="${open}">
+              <span class="side home">${flag(m.hl)}<b>${esc(m.home)}</b></span>
+              <span class="sc">${m.hs} – ${m.as}</span>
+              <span class="side away"><b>${esc(m.away)}</b>${flag(m.al)}</span>
+              <span class="clk ft">${esc(m.detail||"FT")}</span>
+              <span class="cv">${open?"▴":"▾"}</span>
+            </div>
+            <div class="lgdetail"${open?"":" hidden"}>${open?detailHTML(detailsCache[m.id]):""}</div>
+          </div>`;
+        }).join("") + `</div>` : "");
 
-    // (re)load timelines for any open result panels
-    day.matches.forEach(m => { if(expandedResults.has(m.id)) loadDetails(m.id); });
+    // (re)load timelines for any open result panels (only when the list is showing)
+    if(resultsOpen) day.matches.forEach(m => { if(expandedResults.has(m.id)) loadDetails(m.id); });
   }
 
   function toggleResult(id){
@@ -754,10 +764,12 @@
     const row=e.target.closest(".lg"); if(row){ e.preventDefault(); toggleGame(idOf(row)); }
   });
 
-  // results: ‹ › step through matchdays; tap a final to expand its timeline
+  // results: ‹ › step through matchdays; tap header/ripple to fold the list;
+  // tap a final to expand its timeline
   $("results").addEventListener("click", e => {
     const nav=e.target.closest("[data-dir]"); if(nav){ stepDay(+nav.dataset.dir); return; }
-    const row=e.target.closest(".lg"); if(row) toggleResult(idOf(row));
+    const row=e.target.closest(".lg"); if(row){ toggleResult(idOf(row)); return; }
+    if(e.target.closest(".rhead, .ripple")){ resultsOpen = !resultsOpen; renderResults(); }
   });
   $("results").addEventListener("keydown", e => {
     if(e.key!=="Enter" && e.key!==" ") return;
