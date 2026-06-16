@@ -587,9 +587,11 @@
     const projBefore = projAt(before);
 
     // build the subheading as whole, non-breaking segments → no lone-word widows
+    const dayGpg = (after.dayGoals / after.dayMatches).toFixed(2);
     const segs = [
       `<b>${after.dayGoals}</b> goal${after.dayGoals===1?"":"s"}`,
-      `${after.dayMatches} game${after.dayMatches===1?"":"s"}`
+      `${after.dayMatches} game${after.dayMatches===1?"":"s"}`,
+      `<b>${dayGpg}</b>/game`
     ];
     if(projAfter!==null){
       if(projBefore===null){
