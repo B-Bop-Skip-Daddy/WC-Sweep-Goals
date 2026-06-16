@@ -138,8 +138,8 @@
   .results .nav button{border:0;background:rgba(255,255,255,.06);color:#bfe6cf;cursor:pointer;
     width:26px;height:26px;border-radius:8px;font:800 15px/1 Arial}
   .results .nav button:disabled{opacity:.28;cursor:default}
-  .rtoggle{flex:0 0 auto;border:0;background:rgba(255,255,255,.06);color:#bfe6cf;cursor:pointer;
-    width:26px;height:26px;border-radius:8px;font:800 12px/1 Arial}
+  .rtoggle{flex:0 0 auto;border:1px solid rgba(245,197,24,.42);background:rgba(245,197,24,.13);
+    color:var(--gold);cursor:pointer;width:26px;height:26px;border-radius:8px;font:800 12px/1 Arial}
   /* subheading: each segment stays whole, so it can never drop a lone-word widow */
   .ripple{font:600 11.5px/1.45 Arial;color:#bfe6cf;padding:0 2px 2px;cursor:pointer;text-wrap:pretty}
   .ripple b{color:#fff;font-weight:800}
@@ -512,11 +512,24 @@
   }
 
   // ---- recent results (the "last day of games") ----
-  // group every finished match by its local calendar day, oldest → newest
+  // A "game day" is anchored to the North American host time, not the viewer's
+  // clock — so a Saturday slate that runs into the early hours elsewhere still
+  // reads as Saturday. US Pacific (westernmost host zone) keeps a full day's
+  // games on one date; June–July 2026 is entirely PDT (UTC−7), no DST edge.
+  let _dayFmt = null;
+  try { _dayFmt = new Intl.DateTimeFormat("en-CA",
+        {timeZone:"America/Los_Angeles", year:"numeric", month:"2-digit", day:"2-digit"}); } catch(e){}
+  function gameDayKey(date){
+    if(_dayFmt) return _dayFmt.format(date);              // "2026-06-14" in host time
+    const d = new Date(date.getTime() - 7*3600*1000);     // fallback: PDT = UTC−7
+    return d.toISOString().slice(0,10);
+  }
+
+  // group every finished match by its host-time game day, oldest → newest
   function buildDays(){
     const byDay = new Map();
     completedMatches.forEach(m => {
-      const key = m.date.toLocaleDateString("en-CA");   // YYYY-MM-DD, local
+      const key = gameDayKey(m.date);
       if(!byDay.has(key)) byDay.set(key, []);
       byDay.get(key).push(m);
     });
@@ -526,9 +539,8 @@
   }
 
   function dayLabel(key){
-    const today = new Date(), tKey = today.toLocaleDateString("en-CA");
-    const y = new Date(today); y.setDate(y.getDate()-1);
-    const yKey = y.toLocaleDateString("en-CA");
+    const tKey = gameDayKey(new Date());
+    const yKey = gameDayKey(new Date(Date.now() - 86400000));
     const full = new Date(key+"T00:00:00").toLocaleDateString(undefined,
       {weekday:"short", month:"short", day:"numeric"});
     if(key===tKey) return "Today · "+full;
