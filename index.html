@@ -59,11 +59,15 @@
   //      Each person gets one dealt by name-hash — a random retro legend under
   //      their name, classic Panini-album style. [slug, who]                    -->
   window.STICKERS = [
-    ["kevin-keegan","Kevin Keegan"],   ["gary-lineker","Gary Lineker"],     ["bobby-moore","Bobby Moore"],
-    ["bobby-charlton","Bobby Charlton"],["glenn-hoddle","Glenn Hoddle"],    ["bryan-robson","Bryan Robson"],
-    ["trevor-francis","Trevor Francis"],["emlyn-hughes","Emlyn Hughes"],     ["gordon-banks","Gordon Banks"],
-    ["colin-bell","Colin Bell"],       ["ruud-gullit","Ruud Gullit"],       ["carlos-valderrama","Carlos Valderrama"],
-    ["cruyff-1974","Johan Cruyff"],    ["chumpitaz-1970","Héctor Chumpitaz"],["buryak-1978","Leonid Buryak"]
+    ["kevin-keegan","Kevin Keegan"],   ["gordon-banks","Gordon Banks"],     ["bobby-charlton","Bobby Charlton"],
+    ["jack-charlton","Jack Charlton"],  ["martin-peters","Martin Peters"],  ["cruyff-1974","Johan Cruyff"],
+    ["chumpitaz-1970","Héctor Chumpitaz"],["buryak-1978","Leonid Buryak"],   ["aaron-padilla","Aarón Padilla"],
+    ["ado","Ado"],                      ["alberto-onofre","Alberto Onofre"], ["bernd-dorfel","Bernd Dörfel"],
+    ["bjorn-nordqvist","Björn Nordqvist"],["brito","Brito"],                 ["byshovets","Anatoliy Byshovets"],
+    ["carlos-alberto","Carlos Alberto"],["clodoaldo","Clodoaldo"],          ["cubillas","Teófilo Cubillas"],
+    ["edu","Edu"],                      ["enrico-albertosi","Enrico Albertosi"],["everaldo","Everaldo"],
+    ["gerson","Gérson"],                ["gustavo-pena","Gustavo Peña"],     ["jairzinho","Jairzinho"],
+    ["pele","Pelé"],                    ["tostao","Tostão"]
   ];
 </script>
 <!-- ====================================================================================== -->
@@ -293,20 +297,22 @@
   .ios-steps{margin-top:12px;font:600 12px/1.5 Arial;color:#bfe6cf}
   .ios-steps b{color:#fff}
   .ios-steps .share-ic{display:inline-block;color:var(--gold);font-weight:800}
-  /* ---- goals page: the surprise sticker in the expand panel ---- */
-  .psticker{display:flex;align-items:center;gap:12px;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--chalk)}
-  .psticker img{width:62px;height:83px;object-fit:cover;object-position:50% 20%;border-radius:8px;
-    border:1px solid rgba(245,197,24,.4);background:#0a1f14;flex:0 0 auto;box-shadow:0 4px 12px rgba(0,0,0,.4)}
-  .psticker .pcap span{display:block;font:700 8.5px/1.1 Arial;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
-  .psticker .pcap b{display:block;font:800 18px/1.05 "Arial Narrow",Arial;text-transform:uppercase;letter-spacing:.02em;margin-top:5px;color:#fff}
+  /* ---- goals page: the surprise sticker, inline with the slimmed stats ---- */
+  .pdrow{display:flex;align-items:center;gap:9px}
+  .pdstk{width:42px;height:57px;object-fit:cover;object-position:50% 22%;border-radius:6px;
+    border:1px solid rgba(245,197,24,.4);background:#0a1f14;flex:0 0 auto;box-shadow:0 3px 9px rgba(0,0,0,.4)}
+  .pdrow .ds{flex:1;text-align:center;min-width:0}
+  .pdrow .ds .dl{font:700 8px/1.1 Arial;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+  .pdrow .ds .dv{font:800 16px/1 "Arial Narrow",Arial;font-variant-numeric:tabular-nums;margin-top:3px;color:var(--ink)}
+  .pdrow .ds .du{font:600 8px/1.15 Arial;color:var(--muted);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
   /* ---- the sticker album (card 5) ---- */
   .album{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:8px 12px 12px}
   .acard{border:1px solid var(--chalk);background:rgba(255,255,255,.03);border-radius:13px;padding:9px;
     display:flex;flex-direction:column;gap:7px}
-  .asticker{position:relative;border-radius:9px;overflow:hidden;aspect-ratio:3/4;
+  .asticker{position:relative;border-radius:9px;overflow:hidden;aspect-ratio:5/7;
     background:#0a1f14;border:1px solid rgba(245,197,24,.3)}
-  .asticker img{width:100%;height:100%;object-fit:cover;object-position:50% 20%;display:block;filter:saturate(.96) contrast(1.02)}
+  .asticker img{width:100%;height:100%;object-fit:cover;object-position:50% 42%;display:block}
   .asticker .awho{position:absolute;left:0;right:0;bottom:0;font:800 8.5px/1.2 Arial;letter-spacing:.03em;
     text-transform:uppercase;color:#fff;background:linear-gradient(180deg,transparent,rgba(0,0,0,.8));
     padding:12px 5px 4px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -594,9 +600,18 @@
   const C = window.WC, PLAYERS = window.PLAYERS;
   const STICKERS = window.STICKERS || [];
   const $ = id => document.getElementById(id);
-  // deal everyone a vintage legend, stable per name (same name → same sticker)
+  // deal everyone a vintage legend. Sweepstake owners each get a unique one
+  // (by draw order); goals-page nicknames resolve to the same person where we can.
   function hashStr(s){ s=String(s); let h=0; for(let i=0;i<s.length;i++) h=(h*31 + s.charCodeAt(i))|0; return Math.abs(h); }
-  function stickerFor(name){ if(!STICKERS.length) return null; const s=STICKERS[hashStr(name)%STICKERS.length]; return {f:s[0]+".jpg", who:s[1]}; }
+  const NAME_ALIAS = {vin:"vinnie", crank:"crampy", jeffy:"jeff", body:"bobby", duds:"dudley"};
+  let _swIdx = null;
+  function swIdx(){ if(_swIdx) return _swIdx; _swIdx={}; (window.SWEEP||[]).forEach((r,i)=>{ _swIdx[r[0].toLowerCase()]=i; }); return _swIdx; }
+  function stickerFor(name){
+    if(!STICKERS.length) return null;
+    const n=String(name).toLowerCase(), key=NAME_ALIAS[n]||n;
+    let i = swIdx()[key]; if(i==null) i = hashStr(name);
+    const s = STICKERS[i % STICKERS.length]; return {f:s[0]+".jpg", who:s[1]};
+  }
   let view = "guess";
   let liveGames = [];        // matches currently in progress (from ESPN)
   let completedMatches = []; // every finished match this tournament (from ESPN)
@@ -696,14 +711,11 @@
                   : `${stillNeed} in ${remaining} left`;
 
     const stk = stickerFor(p.name);
-    const stkHTML = stk ? `<div class="psticker">
-        <img src="assets/stickers/${stk.f}" alt="${esc(stk.who)}" loading="lazy">
-        <div class="pcap"><span>Your surprise sticker</span><b>${esc(stk.who)}</b></div>
-      </div>` : "";
-
-    return stkHTML + `<div class="dgrid">
-        <div class="ds"><div class="dl">What was needed</div><div class="dv">${f(implied)}</div><div class="du">per game · all ${total}</div></div>
-        <div class="ds"><div class="dl">Pace so far</div><div class="dv">${f(gpg)}</div><div class="du">${played} game${played===1?"":"s"} in</div></div>
+    const img = stk ? `<img class="pdstk" src="assets/stickers/${stk.f}" alt="${esc(stk.who)}" loading="lazy">` : "";
+    return `<div class="pdrow">
+        ${img}
+        <div class="ds"><div class="dl">Needed</div><div class="dv">${f(implied)}</div><div class="du">per game</div></div>
+        <div class="ds"><div class="dl">Pace</div><div class="dv">${f(gpg)}</div><div class="du">${played} game${played===1?"":"s"}</div></div>
         <div class="ds"><div class="dl">Needs now</div><div class="dv">${needVal}</div><div class="du">${esc(needSub)}</div></div>
       </div>`;
   }
@@ -1379,7 +1391,7 @@
       const s = stickerFor(owner);
       const chip = (nm,pot)=>`<span class="alt"><span class="dot2" style="background:${pot==="A"?"var(--gold)":"#5aa9e6"}"></span>${flag(teamLogo(nm))}<span>${esc(nm)}</span></span>`;
       html += `<div class="acard">
-        <div class="asticker">${s?`<img src="assets/stickers/${s.f}" alt="${esc(s.who)}" loading="lazy"><span class="awho">${esc(s.who)}</span>`:""}</div>
+        <div class="asticker">${s?`<img src="assets/stickers/${s.f}" alt="${esc(s.who)}" loading="lazy">`:""}</div>
         <div class="aname">${esc(owner)}</div>
         <div class="ateams">${chip(a,"A")}${chip(b,"B")}</div>
       </div>`;
