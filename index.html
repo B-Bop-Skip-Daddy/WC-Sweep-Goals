@@ -256,6 +256,12 @@
     background:rgba(245,197,24,.07);display:flex;align-items:center;justify-content:center;gap:8px}
   .installbtn:active{transform:translateY(1px)}
 
+  /* tiny refresh button living inside the live badge (top-right) */
+  .miniref{margin-left:3px;border:1px solid var(--chalk);background:rgba(255,255,255,.06);color:#bfe6cf;
+    cursor:pointer;width:20px;height:20px;border-radius:50%;font:700 12px/1 Arial;padding:0;
+    display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto}
+  .miniref:active{transform:rotate(150deg)}
+
   /* ---- install: first-open slide-up banner ---- */
   .install-sheet{position:fixed;left:0;right:0;bottom:0;z-index:50;display:flex;justify-content:center;
     padding:12px 12px calc(12px + env(safe-area-inset-bottom));
@@ -419,18 +425,21 @@
   .mid .tcv{font:700 10px/1 Arial;color:var(--muted);margin-top:3px;opacity:.7}
 
   /* ---- knockout tie drop-down: the two groups behind a slot ---- */
-  .tiebody{display:flex;flex-direction:column;gap:9px;margin:-1px 12px 7px;animation:detailIn .2s ease both}
-  .gtbl{border:1px solid var(--chalk);background:rgba(0,0,0,.24);border-radius:10px;padding:7px 8px;display:flex;flex-direction:column;gap:3px}
-  .gth{font:800 8.5px/1.25 Arial;letter-spacing:.05em;text-transform:uppercase;color:#bfe6cf;padding:1px 1px 4px}
-  .gtr{display:grid;grid-template-columns:13px 16px 1fr auto;align-items:center;gap:6px;padding:4px 5px;border-radius:6px}
+  .tiebody{display:flex;gap:8px;margin:-1px 12px 7px;animation:detailIn .2s ease both}
+  .gtbl{flex:1 1 0;min-width:0;border:1px solid var(--chalk);background:rgba(0,0,0,.24);border-radius:10px;
+    padding:7px 7px;display:flex;flex-direction:column;gap:3px}
+  .gth{font:800 8px/1.25 Arial;letter-spacing:.04em;text-transform:uppercase;color:#bfe6cf;padding:1px 1px 4px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .gtr{display:grid;grid-template-columns:11px 13px minmax(0,1fr) auto;align-items:center;gap:4px;padding:4px 4px;border-radius:6px}
   .gtr.hl{background:rgba(245,197,24,.16);box-shadow:inset 0 0 0 1px rgba(245,197,24,.4)}
-  .gtr .gr{font:800 10px/1 "Arial Narrow",Arial;color:var(--muted);text-align:center;font-variant-numeric:tabular-nums}
-  .gtr img{width:16px;height:11px;object-fit:contain}
-  .gtr .gn{font:800 12.5px/1.1 "Arial Narrow",Arial;text-transform:uppercase;letter-spacing:.02em;white-space:normal}
+  .gtr .gr{font:800 9px/1 "Arial Narrow",Arial;color:var(--muted);text-align:center;font-variant-numeric:tabular-nums}
+  .gtr img{width:13px;height:9px;object-fit:contain}
+  .gtr .gn{font:800 10px/1.05 "Arial Narrow",Arial;text-transform:uppercase;letter-spacing:.01em;
+    min-width:0;white-space:normal;overflow-wrap:anywhere}
   .gtr.hl .gn{color:var(--gold)}
-  .gtr .gp{font:800 11px/1 Arial;font-variant-numeric:tabular-nums}
-  .gtr .gp small{font:600 7px/1 Arial;color:var(--muted);margin-left:2px}
-  .gtnote{font:600 10px/1.3 Arial;color:var(--muted);padding:4px 2px}
+  .gtr .gp{font:800 10px/1 Arial;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .gtr .gp small{font:600 6px/1 Arial;color:var(--muted);margin-left:1px}
+  .gtnote{font:600 9.5px/1.3 Arial;color:var(--muted);padding:4px 2px}
 </style>
 </head>
 <body>
@@ -452,7 +461,7 @@
     <div class="head">
       <div class="eyebrow">
         <span class="kicker">FIFA World Cup 2026</span>
-        <span class="live" id="srcBadge"><span class="dot" id="srcDot"></span><span id="srcTxt">Connecting…</span></span>
+        <span class="live" id="srcBadge"><span class="dot" id="srcDot"></span><span id="srcTxt">Connecting…</span><button class="miniref" id="refreshBtn" aria-label="Refresh now" title="Refresh now">↻</button></span>
       </div>
       <h1>Guess the <b>Goals</b></h1>
     </div>
@@ -522,12 +531,7 @@
 
   <div class="dots" id="dots"><i class="on"></i><i></i><i></i><i></i></div>
 
-  <div class="controls">
-    <div class="ch" id="ctrlHead">Live from ESPN · auto-refreshing</div>
-    <button class="refresh" id="refreshBtn">↻ Refresh now</button>
-    <div class="hint" id="hint">Goals, scores and the projection update on their own — straight from ESPN's live feed.</div>
-    <button class="installbtn hidden" id="installBtn">📲 Add to Home Screen</button>
-  </div>
+  <button class="installbtn hidden" id="installBtn">📲 Add to Home Screen</button>
 </div>
 
 <!-- ---- first-open install nudge (shown once) ---- -->
@@ -1016,6 +1020,7 @@
   let fxPredict = false;   // predicted-score layer (off by default)
   let fxInit = false;      // have we auto-scrolled to today yet?
   let fxScrollPos = 0;     // remembered scroll position across re-renders
+  const expandedFx = new Set();   // fixture ids whose group-table drop-down is open
 
   // predicted scoreline from each team's scoring / conceding pace so far
   function fxPredictScore(stats, gpg, h, a){
@@ -1024,6 +1029,23 @@
     const hx = (hf!=null&&ac!=null) ? (hf+ac)/2 : gpg/2;
     const ax = (af!=null&&hc!=null) ? (af+hc)/2 : gpg/2;
     return [Math.max(0,Math.round(hx)), Math.max(0,Math.round(ax))];
+  }
+
+  // tap a fixture to drop down where the two teams stand in their group(s)
+  function fxExpandable(m){
+    return sideRef(m.homeName||m.home).kind==="pos" || sideRef(m.awayName||m.away).kind==="pos";
+  }
+  function fxTieBody(m){
+    const rh = sideRef(m.homeName||m.home), ra = sideRef(m.awayName||m.away);
+    const pos = r => r.kind==="pos";
+    if(pos(rh) && pos(ra) && rh.grp===ra.grp){          // same group → one table, both highlighted
+      const ranks = new Set([rh.rank, ra.rank]);
+      return `<div class="tiebody">${groupColHTML(rh.grp, t=>ranks.has(t.rank))}</div>`;
+    }
+    let cols = "";
+    if(pos(rh)) cols += groupColHTML(rh.grp, t=>t.rank===rh.rank);
+    if(pos(ra)) cols += groupColHTML(ra.grp, t=>t.rank===ra.rank);
+    return cols ? `<div class="tiebody">${cols}</div>` : "";
   }
 
   function renderFixtures(){
@@ -1100,11 +1122,13 @@
             mid = `<div class="vs">vs</div><div class="ko">${esc(t)}</div>`;
           }
         }
-        html += `<div class="fx${m.state==="live"?" islive":""}${m===nextMatch?" upnext":""}"${m===nextMatch?' data-next="1"':''}>
+        const canOpen = fxExpandable(m), open = expandedFx.has(String(m.id));
+        html += `<div class="fx${m.state==="live"?" islive":""}${m===nextMatch?" upnext":""}${canOpen?" tie":""}"${m===nextMatch?' data-next="1"':''}${canOpen?` data-fxtie="${esc(m.id)}" role="button" tabindex="0" aria-expanded="${open}"`:""}>
           <div class="ft2 h"><span class="tn">${esc(m.home)}${flag(m.hl)}</span>${oh?`<span class="own2">${esc(oh.owner)}</span>`:""}</div>
-          <div class="mid">${mid}</div>
+          <div class="mid">${mid}${canOpen?`<div class="tcv">${open?"▴":"▾"}</div>`:""}</div>
           <div class="ft2"><span class="tn">${flag(m.al)}${esc(m.away)}</span>${oa?`<span class="own2">${esc(oa.owner)}</span>`:""}</div>
         </div>`;
+        if(canOpen && open) html += fxTieBody(m);
       });
       html += `</div>`;
     });
@@ -1149,7 +1173,7 @@
         }).sort((a,b)=>a.rank-b.rank);
         if(entries.length) M.set(L, entries);
       });
-      if(M.size){ groupTables = M; renderKnockout(); }
+      if(M.size){ groupTables = M; renderKnockout(); renderFixtures(); }
     }catch(e){}
   }
 
@@ -1218,9 +1242,10 @@
   // a group's four teams in current order, the relevant position highlighted
   function groupColHTML(grp, hi){
     const arr = groupTables.get(grp) || [];
+    const isHi = typeof hi==="function" ? hi : (t=>t.rank===hi);   // hi: a rank, or a predicate
     if(!arr.length) return `<div class="gtbl"><div class="gth">Group ${grp}</div><div class="gtnote">Table loading…</div></div>`;
     return `<div class="gtbl"><div class="gth">Group ${grp}</div>` +
-      arr.map(t=>`<div class="gtr${t.rank===hi?" hl":""}"><span class="gr">${t.rank}</span>${flag(t.logo)}<span class="gn">${esc(t.name)}</span><span class="gp">${t.pts}<small>pts</small></span></div>`).join("") +
+      arr.map(t=>`<div class="gtr${isHi(t)?" hl":""}"><span class="gr">${t.rank}</span>${flag(t.logo)}<span class="gn">${esc(t.name)}</span><span class="gp">${t.pts}<small>pts</small></span></div>`).join("") +
       `</div>`;
   }
   // the third-placed contenders for a best-third slot; current qualifiers highlighted
@@ -1347,17 +1372,10 @@
 
   // ---- data source ----
   function setBadge(ok){
-    const dot=$("srcDot"), txt=$("srcTxt"), head=$("ctrlHead");
-    if(!ok){ dot.className="dot off"; txt.textContent="Offline";
-      head.textContent="Couldn't reach ESPN — showing last known numbers"; return; }
+    const dot=$("srcDot"), txt=$("srcTxt");
+    if(!ok){ dot.className="dot off"; txt.textContent="Offline"; return; }
     dot.className="dot";
-    if(liveGames.length){
-      txt.textContent=`Live · ${liveGames.length} on now`;
-      head.textContent=`Live from ESPN · ${liveGames.length} match${liveGames.length>1?"es":""} in play`;
-    } else {
-      txt.textContent="Live · ESPN";
-      head.textContent="Live from ESPN · auto-refreshing";
-    }
+    txt.textContent = liveGames.length ? `Live · ${liveGames.length} on now` : "Live · ESPN";
   }
 
   function schedule(){
@@ -1453,6 +1471,7 @@
   });
 
   // fixtures: predicted-score toggle + jump back to today
+  const toggleFxTie = id => { expandedFx.has(id)?expandedFx.delete(id):expandedFx.add(id); renderFixtures(); };
   $("fixturesCard").addEventListener("click", e=>{
     const fx = e.target.closest("[data-fx]");
     if(fx){ fxPredict = fx.dataset.fx==="on"; renderFixtures(); return; }
@@ -1462,8 +1481,13 @@
       return;
     }
     if(e.target.closest("#fxTop")){
-      const sc=$("fxScroll"); if(sc) sc.scrollTo({top:0, behavior:"smooth"});
+      const sc=$("fxScroll"); if(sc) sc.scrollTo({top:0, behavior:"smooth"}); return;
     }
+    const tie = e.target.closest("[data-fxtie]"); if(tie) toggleFxTie(tie.dataset.fxtie);
+  });
+  $("fixturesCard").addEventListener("keydown", e=>{
+    if(e.key!=="Enter" && e.key!==" ") return;
+    const tie = e.target.closest("[data-fxtie]"); if(tie){ e.preventDefault(); toggleFxTie(tie.dataset.fxtie); }
   });
 
   // tap / keyboard a live match row to expand its goal + card timeline
