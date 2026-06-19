@@ -36,6 +36,24 @@
     ["Gary C",286],["Tim",281],["J",280],["PT",275],["Matty",274],
     ["Body",271],["Duds",268],["Shorty",260],["Olly",259],["Naji",214]
   ];
+  // ---- The Draw (sweepstake) · 24 players, each owns one stronger (A) + one
+  //      weaker (B) team. All 48 World Cup teams are owned. Pot £480:
+  //      1st £240 · 3rd £120 · most conceded £72 · first red card £48.
+  //      [owner, teamA(stronger), teamB(weaker)] — read off the draw graphic.
+  window.SWEEP = [
+    ["Ian","Senegal","Qatar"],          ["Kev","Germany","Bosnia & Herz."],
+    ["Adam","Mexico","Scotland"],       ["Nick","Switzerland","Norway"],
+    ["Aiden","Egypt","Iran"],           ["Owen","Austria","DR Congo"],
+    ["Ben","Portugal","Australia"],     ["Jules","Spain","Türkiye"],
+    ["Bobby","France","Curaçao"],       ["Matty","Japan","New Zealand"],
+    ["Biggsy","England","Jordan"],      ["Naji","Uruguay","Paraguay"],
+    ["Conway","Sweden","South Africa"], ["Scullion","Croatia","Haiti"],
+    ["Crampy","USA","Iraq"],            ["Shorty","Belgium","Saudi Arabia"],
+    ["Dudley","Argentina","Czechia"],   ["Gaffer","Ivory Coast","Canada"],
+    ["Olly","South Korea","Panama"],    ["PT","Ecuador","Uzbekistan"],
+    ["Tim","Colombia","Algeria"],       ["Vinnie","Brazil","Cape Verde"],
+    ["Jeff","Morocco","Ghana"],         ["Maani","Netherlands","Tunisia"]
+  ];
 </script>
 <!-- ====================================================================================== -->
 
@@ -259,10 +277,105 @@
   .ios-steps b{color:#fff}
   .ios-steps .share-ic{display:inline-block;color:var(--gold);font-weight:800}
   .hidden{display:none !important}
+
+  /* ============ swipe deck (thumb across to the next competition) ============ */
+  .decktabs{display:flex;gap:4px;background:rgba(0,0,0,.34);border:1px solid var(--chalk);
+    border-radius:999px;padding:4px;margin-bottom:12px;position:sticky;top:6px;z-index:6;
+    -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+  .decktabs button{flex:1;border:0;background:transparent;color:var(--muted);cursor:pointer;
+    font:800 10.5px/1 Arial;letter-spacing:.05em;text-transform:uppercase;padding:9px 4px;
+    border-radius:999px;white-space:nowrap}
+  .decktabs button.on{background:rgba(245,197,24,.18);color:var(--gold)}
+  .deck{display:flex;align-items:flex-start;overflow-x:auto;scroll-snap-type:x mandatory;
+    -webkit-overflow-scrolling:touch;scroll-behavior:smooth;scrollbar-width:none}
+  .deck::-webkit-scrollbar{display:none}
+  .card{flex:0 0 100%;width:100%;scroll-snap-align:start;scroll-snap-stop:always}
+  .dots{display:flex;justify-content:center;gap:7px;margin-top:12px}
+  .dots i{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.18);transition:all .25s}
+  .dots i.on{background:var(--gold);width:20px;border-radius:4px}
+
+  /* shared panel chrome (mirrors #board so every card matches) */
+  .panel{position:relative;overflow:hidden;border-radius:22px;
+    background:radial-gradient(120% 80% at 50% -10%, rgba(245,197,24,.10), transparent 60%),
+      linear-gradient(180deg,var(--pitch-2),var(--pitch) 60%);
+    border:1px solid var(--chalk);box-shadow:0 24px 60px rgba(0,0,0,.55)}
+  .panel::before{content:"";position:absolute;inset:0;pointer-events:none;
+    background:repeating-linear-gradient(180deg,rgba(255,255,255,.018) 0 38px,transparent 38px 76px)}
+
+  /* ---- prize chips (the £480 race) ---- */
+  .prizes{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:14px}
+  .prize{border-radius:13px;border:1px solid var(--chalk);background:rgba(255,255,255,.03);padding:11px 12px}
+  .prize .pn{font:800 9.5px/1.2 Arial;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+  .prize .pv{font:800 19px/1 "Arial Narrow",Arial;color:var(--gold);margin-top:5px}
+  .prize .pw{font:600 11px/1.35 Arial;color:#bfe6cf;margin-top:5px}
+  .prize .pw b{color:#fff;font-weight:800}
+  .prize.red{border-color:rgba(232,65,60,.4);background:rgba(232,65,60,.09)}
+  .prize.red .pv{color:#ff7a76}
+
+  /* ---- sweepstake tables ---- */
+  .swsub{padding:2px 16px 4px;font:600 11.5px/1.45 Arial;color:#bfe6cf}
+  .swsub b{color:#fff;font-weight:800}
+  .swtable{padding:8px 12px 16px;display:flex;flex-direction:column;gap:5px}
+  .swrow{display:grid;grid-template-columns:22px 20px 1fr auto;align-items:center;gap:9px;
+    padding:9px 11px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid var(--chalk)}
+  .swrow.win{border-color:rgba(245,197,24,.45);background:rgba(245,197,24,.10)}
+  .swrow .rk{font:800 12px/1 "Arial Narrow",Arial;color:var(--muted);text-align:center;font-variant-numeric:tabular-nums}
+  .swrow img{width:20px;height:14px;object-fit:contain}
+  .swrow .tm{min-width:0}
+  .swrow .tm b{font:800 14px/1.05 "Arial Narrow",Arial;text-transform:uppercase;letter-spacing:.02em;
+    display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .swrow .tm span{font:600 10px/1.2 Arial;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+  .swrow .vv{font:900 18px/1 Arial;font-variant-numeric:tabular-nums;text-align:right}
+  .swrow .vv small{font:700 8.5px/1 Arial;color:var(--muted);display:block;margin-top:3px}
+
+  /* ---- sweepstake · by owner ---- */
+  .own{padding:8px 12px 16px;display:flex;flex-direction:column;gap:6px}
+  .ownr{display:grid;grid-template-columns:74px 1fr;gap:10px;align-items:center;
+    padding:9px 11px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid var(--chalk)}
+  .ownr.win{border-color:rgba(245,197,24,.45);background:rgba(245,197,24,.10)}
+  .ownr .onm{font:800 15px/1 "Arial Narrow",Arial;text-transform:uppercase;letter-spacing:.02em}
+  .ownr .tt{display:flex;flex-direction:column;gap:5px;min-width:0}
+  .tchip{display:flex;align-items:center;gap:7px;font:700 12.5px/1 Arial;min-width:0}
+  .tchip img{width:18px;height:12px;object-fit:contain;flex:0 0 auto}
+  .tchip .dot2{width:7px;height:7px;border-radius:50%;flex:0 0 auto}
+  .tchip .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tchip .ga{margin-left:auto;font:700 10.5px/1 Arial;color:var(--muted);
+    font-variant-numeric:tabular-nums;flex:0 0 auto;padding-left:6px}
+
+  /* ---- fixtures + knockout ties ---- */
+  .fxday{padding:2px 12px}
+  .fxh{font:800 10px/1 Arial;letter-spacing:.14em;text-transform:uppercase;color:#bfe6cf;padding:12px 2px 8px}
+  .fx{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;
+    padding:10px 11px;border-radius:11px;background:rgba(255,255,255,.04);border:1px solid var(--chalk);margin-bottom:6px}
+  .fx .ft2{display:flex;flex-direction:column;gap:3px;min-width:0}
+  .fx .ft2.h{align-items:flex-end;text-align:right}
+  .fx .tn{display:flex;align-items:center;gap:6px;font:800 13px/1.05 "Arial Narrow",Arial;
+    text-transform:uppercase;letter-spacing:.02em}
+  .fx .tn img{width:20px;height:14px;object-fit:contain}
+  .fx .own2{font:700 9.5px/1 Arial;color:var(--gold);letter-spacing:.02em}
+  .fx .mid{text-align:center;padding:0 4px}
+  .fx .predlbl{font:700 8px/1 Arial;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:3px}
+  .fx .pred{font:900 17px/1 Arial;font-variant-numeric:tabular-nums}
+  .fx .ko{font:700 9px/1 Arial;color:var(--muted);margin-top:4px;white-space:nowrap}
+
+  .koround h4{font:800 11px/1 Arial;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);padding:14px 2px 8px}
+  .koempty{padding:30px 22px 34px;text-align:center;color:#bfe6cf;font:600 13px/1.6 Arial}
+  .koempty b{color:#fff;font-weight:800}
 </style>
 </head>
 <body>
 <div class="wrap">
+
+  <!-- ---- swipe between competitions ---- -->
+  <div class="decktabs" id="decktabs">
+    <button data-go="0" class="on">Goals</button>
+    <button data-go="1">Sweepstake</button>
+    <button data-go="2">Fixtures</button>
+    <button data-go="3">Knockout</button>
+  </div>
+
+  <div class="deck" id="deck">
+  <section class="card">
 
   <!-- ============ SCREENSHOT TARGET ============ -->
   <div id="board">
@@ -330,6 +443,14 @@
     </div>
   </div>
   <!-- ============ /SCREENSHOT TARGET ============ -->
+  </section>
+
+  <section class="card"><div class="panel" id="sweepCard"></div></section>
+  <section class="card"><div class="panel" id="fixturesCard"></div></section>
+  <section class="card"><div class="panel" id="koCard"></div></section>
+  </div><!-- /deck -->
+
+  <div class="dots" id="dots"><i class="on"></i><i></i><i></i><i></i></div>
 
   <div class="controls">
     <div class="ch" id="ctrlHead">Live from ESPN · auto-refreshing</div>
@@ -366,6 +487,7 @@
   let view = "guess";
   let liveGames = [];        // matches currently in progress (from ESPN)
   let completedMatches = []; // every finished match this tournament (from ESPN)
+  let upcomingMatches = [];  // scheduled matches not yet kicked off (fixtures/bracket)
   let selectedDayKey = null; // which matchday the results panel is showing (null = latest)
   let resultsOpen = false;   // results drop-down: header+ripple always show, list folds away
   let pollTimer = null;
@@ -653,6 +775,230 @@
     renderResults();
   }
 
+  // ===================== SWEEPSTAKE · FIXTURES · KNOCKOUT =====================
+  const SWEEP = window.SWEEP || [];
+  const POT = { first:240, third:120, conceded:72, red:48, total:480 };
+
+  // normalise a country name so ESPN's spelling lines up with the draw sheet
+  // NFD splits accents into combining marks; the final [^a-z] strip drops them,
+  // so "Türkiye" -> "turkiye", "Curaçao" -> "curacao", "&" -> "and".
+  const stripA = s => (s||"").toLowerCase().normalize("NFD")
+      .replace(/&/g,"and").replace(/[^a-z]/g,"");
+  const TEAM_ALIAS = {
+    turkey:"turkiye", korearepublic:"southkorea", korea:"southkorea",
+    iriran:"iran", iranislamicrepublic:"iran", cotedivoire:"ivorycoast",
+    congodr:"drcongo", democraticrepublicofthecongo:"drcongo", congo:"drcongo",
+    unitedstates:"usa", us:"usa", usmnt:"usa",
+    bosniaandherzegovina:"bosnia", bosniaandherz:"bosnia", bosniaherzegovina:"bosnia",
+    caboverde:"capeverde", czechrepublic:"czechia", chinapr:"china"
+  };
+  const teamKey = name => { const k = stripA(name); return TEAM_ALIAS[k] || k; };
+
+  // team key -> { owner, team(as drawn), pot }
+  const OWNER = new Map();
+  SWEEP.forEach(([owner,a,b])=>{
+    OWNER.set(teamKey(a), {owner, team:a, pot:"A"});
+    OWNER.set(teamKey(b), {owner, team:b, pot:"B"});
+  });
+  const ownerOf = name => OWNER.get(teamKey(name)) || null;
+
+  // goals for / against + record per team, from finished matches only
+  function teamStats(){
+    const M = new Map();
+    const touch = (name, logo) => {
+      const k = teamKey(name);
+      if(!M.has(k)) M.set(k, {key:k, name:name||k, logo, gf:0, ga:0, p:0, w:0, d:0, l:0});
+      const t = M.get(k);
+      if(logo && !t.logo) t.logo = logo;
+      if(name && name.length > (t.name||"").length) t.name = name;   // prefer the fuller name
+      return t;
+    };
+    completedMatches.forEach(m=>{
+      const h = touch(m.homeName||m.home, m.hl), a = touch(m.awayName||m.away, m.al);
+      h.gf+=m.hs; h.ga+=m.as; a.gf+=m.as; a.ga+=m.hs; h.p++; a.p++;
+      if(m.hs>m.as){h.w++;a.l++;} else if(m.hs<m.as){a.w++;h.l++;} else {h.d++;a.d++;}
+    });
+    return M;
+  }
+
+  // ---- first red card of the tournament (settles the £48) ----
+  let firstRed = null, redScan = "idle";   // idle | scanning | done
+  const minNum = s => { const m=/(\d+)(?:\D+(\d+))?/.exec(s||""); return m ? (+m[1] + (+(m[2]||0))/100) : 1e9; };
+  async function scanFirstRed(){
+    if(redScan==="scanning" || redScan==="done" || !completedMatches.length) return;
+    redScan = "scanning";
+    const ms = [...completedMatches].sort((a,b)=>a.date-b.date);   // oldest first
+    for(const m of ms){
+      if(!detailsCache[m.id]) await loadDetails(m.id);
+      const reds = (detailsCache[m.id]||[]).filter(e=>e.kind==="red");
+      if(reds.length){
+        reds.sort((x,y)=>minNum(x.min)-minNum(y.min));
+        const r = reds[0];
+        const homeIsRed = teamKey(r.team)===teamKey(m.homeName||m.home);
+        firstRed = { team:r.team||(homeIsRed?m.homeName:m.awayName), who:r.who, min:r.min, m,
+                     opp: homeIsRed ? (m.awayName||m.away) : (m.homeName||m.home) };
+        redScan = "done"; renderSweep(); return;
+      }
+    }
+    redScan = "idle";    // none yet — re-scan as more matches finish
+    renderSweep();
+  }
+
+  let sweepView = "teams";   // teams | owners
+  function renderSweep(){
+    const card = $("sweepCard"); if(!card) return;
+    const stats = teamStats();
+    const ranked = [...stats.values()].filter(t=>t.p>0)
+      .sort((a,b)=> b.ga-a.ga || (b.ga/b.p)-(a.ga/a.p) || b.gf-a.gf);
+    const top = ranked[0] || null, topO = top ? ownerOf(top.name) : null;
+
+    // prizes that can be settled from results already in (round = host-date bucket)
+    const finalM = completedMatches.find(m=>koRound(m)==="Final");
+    const thirdM = completedMatches.find(m=>koRound(m)==="Third Place");
+    const winOf  = m => !m ? null : m.hs>m.as ? (m.homeName||m.home) : m.hs<m.as ? (m.awayName||m.away) : null;
+    const champ = winOf(finalM), bronze = winOf(thirdM);
+    const oc = champ && ownerOf(champ), ob = bronze && ownerOf(bronze);
+
+    const chip = (cls,label,amt,won) =>
+      `<div class="prize ${cls}"><div class="pn">${label}</div><div class="pv">£${amt}</div><div class="pw">${won}</div></div>`;
+    const redWon = firstRed
+      ? `${ownerOf(firstRed.team)?`<b>${esc(ownerOf(firstRed.team).owner)}</b> · `:""}${esc(firstRed.team)}`
+      : redScan==="scanning" ? "Checking the cards…" : "None shown yet";
+
+    let html = `<div class="head">
+        <div class="eyebrow"><span class="kicker">2026 Sweepstake · £${POT.total} pot</span>
+          <span class="live"><span class="dot"></span>Live</span></div>
+        <h1>The <b>Draw</b></h1></div>
+      <div class="prizes">
+        ${chip("","🥇 Winner",POT.first, oc?`<b>${esc(oc.owner)}</b> · ${esc(champ)}`:"Decided at the final")}
+        ${chip("","🥉 Third",POT.third, ob?`<b>${esc(ob.owner)}</b> · ${esc(bronze)}`:"Third-place play-off")}
+        ${chip("","🚿 Most conceded",POT.conceded, top?`${topO?`<b>${esc(topO.owner)}</b> · `:""}${esc(top.name)} (${top.ga})`:"After kick-off")}
+        ${chip("red","🟥 First red",POT.red, redWon)}
+      </div>
+      <div class="barhead"><span class="t">${sweepView==="teams"?"Goals conceded · live":"Every player's two teams"}</span>
+        <div class="toggle">
+          <button data-sw="teams" class="${sweepView==="teams"?"on":""}">Conceded</button>
+          <button data-sw="owners" class="${sweepView==="owners"?"on":""}">Owners</button>
+        </div></div>`;
+
+    if(sweepView==="teams"){
+      if(!ranked.length){
+        html += `<div class="swsub">The goals-against table starts the moment the first games are in.</div>`;
+      } else {
+        html += `<div class="swsub">Own the leakiest team and the <b>£${POT.conceded}</b> is yours.</div><div class="swtable">`;
+        ranked.slice(0,16).forEach((t,i)=>{
+          const o = ownerOf(t.name);
+          html += `<div class="swrow${i===0?" win":""}">
+            <span class="rk">${i+1}</span>${flag(t.logo)}
+            <span class="tm"><b>${esc(t.name)}</b><span>${o?esc(o.owner):"unowned"} · ${t.p} game${t.p===1?"":"s"} · ${t.gf} scored</span></span>
+            <span class="vv">${t.ga}<small>against</small></span></div>`;
+        });
+        html += `</div>`;
+      }
+    } else {
+      html += `<div class="own">`;
+      const blue = "#5aa9e6";
+      [...SWEEP].sort((a,b)=>a[0].localeCompare(b[0])).forEach(([owner,a,b])=>{
+        const ta = stats.get(teamKey(a)), tb = stats.get(teamKey(b));
+        const lead = top && (teamKey(a)===top.key || teamKey(b)===top.key);
+        const tc = (name,t,pot)=>`<span class="tchip"><span class="dot2" style="background:${pot==="A"?"var(--gold)":blue}"></span>${flag(t&&t.logo)}<span class="nm">${esc(name)}</span><span class="ga">${t&&t.p?`${t.ga} GA`:"—"}</span></span>`;
+        html += `<div class="ownr${lead?" win":""}"><div class="onm">${esc(owner)}</div>
+          <div class="tt">${tc(a,ta,"A")}${tc(b,tb,"B")}</div></div>`;
+      });
+      html += `</div>`;
+    }
+    card.innerHTML = html;
+  }
+
+  function renderFixtures(){
+    const card = $("fixturesCard"); if(!card) return;
+    const stats = teamStats();
+    const gpg = compute().gpg || 1.25;
+    const avg = (name,k)=>{ const t = stats.get(teamKey(name)); return t&&t.p ? t[k]/t.p : null; };
+    const predict = (h,a)=>{
+      const hf=avg(h,"gf"), hc=avg(h,"ga"), af=avg(a,"gf"), ac=avg(a,"ga");
+      const hx = (hf!=null&&ac!=null) ? (hf+ac)/2 : gpg/2;
+      const ax = (af!=null&&hc!=null) ? (af+hc)/2 : gpg/2;
+      return [Math.max(0,Math.round(hx)), Math.max(0,Math.round(ax))];
+    };
+    let html = `<div class="head"><div class="eyebrow"><span class="kicker">What's coming up</span></div>
+      <h1>The <b>Fixtures</b></h1></div>`;
+    // real matchups only — keep bracket placeholder slots out of the fixtures list
+    const up = [...upcomingMatches]
+      .filter(m=> isReal(m.homeName||m.home) && isReal(m.awayName||m.away))
+      .sort((a,b)=>a.date-b.date);
+    if(!up.length){
+      html += `<div class="koempty">No scheduled games in the feed right now.<br>They'll show here — day by day, with a predicted score — the moment the next round is set.</div>`;
+      card.innerHTML = html; return;
+    }
+    const byDay = new Map();
+    up.forEach(m=>{ const k=gameDayKey(m.date); if(!byDay.has(k))byDay.set(k,[]); byDay.get(k).push(m); });
+    [...byDay.keys()].sort().slice(0,8).forEach(k=>{
+      html += `<div class="fxday"><div class="fxh">${esc(dayLabel(k))}</div>`;
+      byDay.get(k).forEach(m=>{
+        const [ph,pa] = predict(m.homeName||m.home, m.awayName||m.away);
+        const oh = ownerOf(m.homeName||m.home), oa = ownerOf(m.awayName||m.away);
+        const t = m.date.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"});
+        html += `<div class="fx">
+          <div class="ft2 h"><span class="tn">${esc(m.home)}${flag(m.hl)}</span>${oh?`<span class="own2">${esc(oh.owner)}</span>`:""}</div>
+          <div class="mid"><div class="predlbl">Predicted</div><div class="pred">${ph}–${pa}</div><div class="ko">${esc(t)}</div></div>
+          <div class="ft2"><span class="tn">${flag(m.al)}${esc(m.away)}</span>${oa?`<span class="own2">${esc(oa.owner)}</span>`:""}</div>
+        </div>`;
+      });
+      html += `</div>`;
+    });
+    card.innerHTML = html;
+  }
+
+  // ESPN gives no round headline, so bucket knockout ties by host date (2026 schedule).
+  const KO_ORDER = ["Round of 32","Round of 16","Quarterfinal","Semifinal","Third Place","Final"];
+  const koRound = m => {
+    const d = gameDayKey(m.date);
+    if(d <  "2026-06-28") return null;          // group stage
+    if(d <= "2026-07-03") return "Round of 32";
+    if(d <= "2026-07-07") return "Round of 16";
+    if(d <= "2026-07-11") return "Quarterfinal";
+    if(d <= "2026-07-15") return "Semifinal";
+    if(d === "2026-07-18") return "Third Place";
+    return "Final";                             // 2026-07-19
+  };
+  // every real World Cup team is owned in the draw, so "owned" == "resolved team"
+  // (bracket placeholders like "Group A 2nd Place" are not).
+  const isReal = name => OWNER.has(teamKey(name));
+
+  function renderKnockout(){
+    const card = $("koCard"); if(!card) return;
+    // only ties whose BOTH sides have resolved to real teams — no placeholder slots
+    const all = [...completedMatches, ...liveGames, ...upcomingMatches]
+      .map(m=>({m, round:koRound(m)}))
+      .filter(x=>x.round && isReal(x.m.homeName||x.m.home) && isReal(x.m.awayName||x.m.away));
+    let html = `<div class="head"><div class="eyebrow"><span class="kicker">Who's drawn who</span></div>
+      <h1>The <b>Knockouts</b></h1></div>`;
+    if(!all.length){
+      html += `<div class="koempty">The bracket locks when the group stage wraps.<br><br>
+        Once the <b>Round of 32</b> is drawn, every tie lands here with <b>each player's name under their team</b> — so the whole crew can see who's up against who.</div>`;
+      card.innerHTML = html; return;
+    }
+    KO_ORDER.forEach(rd=>{
+      const rs = all.filter(x=>x.round===rd); if(!rs.length) return;
+      rs.sort((a,b)=>a.m.date-b.m.date);
+      html += `<div class="fxday koround"><h4>${rd}</h4>`;
+      rs.forEach(({m})=>{
+        const oh = ownerOf(m.homeName||m.home), oa = ownerOf(m.awayName||m.away);
+        const played = m.detail || m.clock;          // finished or live → show the score
+        const sc = played ? `${m.hs}–${m.as}` : "vs";
+        const sub = m.detail || m.clock || m.date.toLocaleDateString(undefined,{month:"short",day:"numeric"});
+        html += `<div class="fx">
+          <div class="ft2 h"><span class="tn">${esc(m.home)}${flag(m.hl)}</span>${oh?`<span class="own2">${esc(oh.owner)}</span>`:""}</div>
+          <div class="mid"><div class="pred">${sc}</div><div class="ko">${esc(sub)}</div></div>
+          <div class="ft2"><span class="tn">${flag(m.al)}${esc(m.away)}</span>${oa?`<span class="own2">${esc(oa.owner)}</span>`:""}</div>
+        </div>`;
+      });
+      html += `</div>`;
+    });
+    card.innerHTML = html;
+  }
+
   function render(animate){
     const d = compute();
     countUp($("goalsNow"), d.goals, 0);
@@ -661,6 +1007,9 @@
     countUp($("gpg"), d.gpg, 2);
     renderLive();
     renderResults();
+    renderSweep();
+    renderFixtures();
+    renderKnockout();
     $("goalsSub").textContent = liveGames.length
       ? `${liveGames.length} match${liveGames.length>1?"es":""} live now`
       : "across the tournament";
@@ -730,35 +1079,39 @@
       const res = await fetch(C.FEED, {cache:"no-store"});
       if(!res.ok) throw new Error(res.status);
       const data = await res.json();
-      let goals=0, played=0; const games=[], done=[];
+      let goals=0, played=0; const games=[], done=[], soon=[];
       (data.events||[]).forEach(ev=>{
         const comp=(ev.competitions||[])[0]; if(!comp) return;
         const st=comp.status||{}, type=st.type||{}, state=type.state;
-        const isLive = state==="in";
-        if(!isLive && !type.completed) return;        // skip scheduled / postponed
-        played++;
         const cs=comp.competitors||[];
-        cs.forEach(c=> goals += parseInt(c.score,10)||0 );
         const home = cs.find(c=>c.homeAway==="home") || cs[0] || {};
         const away = cs.find(c=>c.homeAway==="away") || cs[1] || {};
         const T = c => (c.team||{});
         const m = {
-          id: ev.id,
+          id: ev.id, date: new Date(ev.date || comp.date),
           home: T(home).abbreviation || T(home).shortDisplayName || "?",
           away: T(away).abbreviation || T(away).shortDisplayName || "?",
+          homeName: T(home).displayName || T(home).shortDisplayName || T(home).abbreviation || "",
+          awayName: T(away).displayName || T(away).shortDisplayName || T(away).abbreviation || "",
           hs: parseInt(home.score,10)||0, as: parseInt(away.score,10)||0,
-          hl: T(home).logo, al: T(away).logo
+          hl: T(home).logo, al: T(away).logo,
+          note: (comp.notes && comp.notes[0] && comp.notes[0].headline) || ""   // round name in knockouts
         };
-        if(isLive){
+        if(state==="in"){
+          played++; cs.forEach(c=> goals += parseInt(c.score,10)||0 );
           games.push({ ...m, clock: type.shortDetail || st.displayClock || "LIVE" });
-        } else {
-          done.push({ ...m, date: new Date(ev.date || comp.date),
-                      detail: /pen|shoot/i.test(type.detail||"") ? "FT (pens)"
+        } else if(type.completed){
+          played++; cs.forEach(c=> goals += parseInt(c.score,10)||0 );
+          done.push({ ...m, detail: /pen|shoot/i.test(type.detail||"") ? "FT (pens)"
                             : /extra|AET/i.test(type.detail||"") ? "AET" : "FT" });
+        } else if(state==="pre"){
+          soon.push(m);                                 // scheduled — fixtures + bracket
         }
       });
-      C.GOALS_SCORED=goals; C.MATCHES_PLAYED=played; liveGames=games; completedMatches=done;
+      C.GOALS_SCORED=goals; C.MATCHES_PLAYED=played;
+      liveGames=games; completedMatches=done; upcomingMatches=soon;
       setBadge(true); render();
+      scanFirstRed();                                   // settle the £48 (first red card)
     }catch(e){
       setBadge(false); render();
     }
@@ -769,6 +1122,25 @@
   $("tLikely").onclick = ()=>{ view="likely"; $("tLikely").classList.add("on"); $("tGuess").classList.remove("on"); render(true); };
   $("tGuess").onclick  = ()=>{ view="guess";  $("tGuess").classList.add("on");  $("tLikely").classList.remove("on"); render(true); };
   $("refreshBtn").onclick = ()=>{ fetchLive(); };
+
+  // ---- swipe deck: thumb across (or tap a tab) to the next competition ----
+  const deck = $("deck");
+  const tabBtns = [...document.querySelectorAll("#decktabs button")];
+  const dotEls  = [...document.querySelectorAll("#dots i")];
+  function setDeck(i){
+    tabBtns.forEach((b,k)=>b.classList.toggle("on",k===i));
+    dotEls.forEach((dt,k)=>dt.classList.toggle("on",k===i));
+  }
+  tabBtns.forEach((b,i)=> b.addEventListener("click",()=> deck.scrollTo({left:i*deck.clientWidth, behavior:"smooth"})));
+  let deckT;
+  deck.addEventListener("scroll",()=>{ clearTimeout(deckT);
+    deckT = setTimeout(()=> setDeck(Math.round(deck.scrollLeft/Math.max(1,deck.clientWidth))), 50);
+  }, {passive:true});
+
+  // sweepstake: flip between the conceded table and the by-owner view
+  $("sweepCard").addEventListener("click", e=>{
+    const b = e.target.closest("[data-sw]"); if(b){ sweepView = b.dataset.sw; renderSweep(); }
+  });
 
   // tap / keyboard a live match row to expand its goal + card timeline
   const idOf = t => { const w = t.closest && t.closest(".lgwrap"); return w && w.dataset.id; };
