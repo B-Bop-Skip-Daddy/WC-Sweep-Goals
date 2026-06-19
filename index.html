@@ -55,6 +55,16 @@
     ["Tim","Colombia","Algeria"],       ["Vinnie","Brazil","Cape Verde"],
     ["Jeff","Morocco","Ghana"],         ["Maani","Netherlands","Tunisia"]
   ];
+  // ---- the sticker pool: vintage footballers (public-domain / CC0, Wikimedia).
+  //      Each person gets one dealt by name-hash — a random retro legend under
+  //      their name, classic Panini-album style. [slug, who]                    -->
+  window.STICKERS = [
+    ["kevin-keegan","Kevin Keegan"],   ["gary-lineker","Gary Lineker"],     ["bobby-moore","Bobby Moore"],
+    ["bobby-charlton","Bobby Charlton"],["glenn-hoddle","Glenn Hoddle"],    ["bryan-robson","Bryan Robson"],
+    ["trevor-francis","Trevor Francis"],["emlyn-hughes","Emlyn Hughes"],     ["gordon-banks","Gordon Banks"],
+    ["colin-bell","Colin Bell"],       ["ruud-gullit","Ruud Gullit"],       ["carlos-valderrama","Carlos Valderrama"],
+    ["cruyff-1974","Johan Cruyff"],    ["chumpitaz-1970","Héctor Chumpitaz"],["buryak-1978","Leonid Buryak"]
+  ];
 </script>
 <!-- ====================================================================================== -->
 
@@ -283,6 +293,31 @@
   .ios-steps{margin-top:12px;font:600 12px/1.5 Arial;color:#bfe6cf}
   .ios-steps b{color:#fff}
   .ios-steps .share-ic{display:inline-block;color:var(--gold);font-weight:800}
+  /* ---- goals page: the surprise sticker in the expand panel ---- */
+  .psticker{display:flex;align-items:center;gap:12px;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--chalk)}
+  .psticker img{width:62px;height:83px;object-fit:cover;object-position:50% 20%;border-radius:8px;
+    border:1px solid rgba(245,197,24,.4);background:#0a1f14;flex:0 0 auto;box-shadow:0 4px 12px rgba(0,0,0,.4)}
+  .psticker .pcap span{display:block;font:700 8.5px/1.1 Arial;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+  .psticker .pcap b{display:block;font:800 18px/1.05 "Arial Narrow",Arial;text-transform:uppercase;letter-spacing:.02em;margin-top:5px;color:#fff}
+
+  /* ---- the sticker album (card 5) ---- */
+  .album{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:8px 12px 12px}
+  .acard{border:1px solid var(--chalk);background:rgba(255,255,255,.03);border-radius:13px;padding:9px;
+    display:flex;flex-direction:column;gap:7px}
+  .asticker{position:relative;border-radius:9px;overflow:hidden;aspect-ratio:3/4;
+    background:#0a1f14;border:1px solid rgba(245,197,24,.3)}
+  .asticker img{width:100%;height:100%;object-fit:cover;object-position:50% 20%;display:block;filter:saturate(.96) contrast(1.02)}
+  .asticker .awho{position:absolute;left:0;right:0;bottom:0;font:800 8.5px/1.2 Arial;letter-spacing:.03em;
+    text-transform:uppercase;color:#fff;background:linear-gradient(180deg,transparent,rgba(0,0,0,.8));
+    padding:12px 5px 4px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .aname{font:800 17px/1 "Arial Narrow",Arial;text-transform:uppercase;letter-spacing:.02em;color:var(--gold)}
+  .ateams{display:flex;flex-direction:column;gap:4px}
+  .alt{display:flex;align-items:center;gap:6px;font:700 11.5px/1.1 Arial;min-width:0}
+  .alt img{width:17px;height:12px;object-fit:contain;flex:0 0 auto}
+  .alt .dot2{width:6px;height:6px;border-radius:50%;flex:0 0 auto}
+  .alt span:last-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .acredit{font:600 9px/1.3 Arial;color:var(--muted);text-align:center;padding:2px 12px 12px}
+
   .hidden{display:none !important}
 
   /* ============ swipe deck (thumb across to the next competition) ============ */
@@ -290,7 +325,7 @@
     border-radius:999px;padding:4px;margin-bottom:12px;flex:0 0 auto;
     -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
   .decktabs button{flex:1;border:0;background:transparent;color:var(--muted);cursor:pointer;
-    font:800 10.5px/1 Arial;letter-spacing:.05em;text-transform:uppercase;padding:9px 4px;
+    font:800 9.5px/1 Arial;letter-spacing:.01em;text-transform:uppercase;padding:9px 2px;
     border-radius:999px;white-space:nowrap}
   .decktabs button.on{background:rgba(245,197,24,.18);color:var(--gold)}
   .deck{display:flex;align-items:stretch;overflow-x:auto;scroll-snap-type:x mandatory;
@@ -447,9 +482,10 @@
   <!-- ---- swipe between competitions ---- -->
   <div class="decktabs" id="decktabs">
     <button data-go="0" class="on">Goals</button>
-    <button data-go="1">Sweepstake</button>
+    <button data-go="1">Sweeps</button>
     <button data-go="2">Fixtures</button>
     <button data-go="3">Knockout</button>
+    <button data-go="4">Album</button>
   </div>
 
   <div class="deck" id="deck">
@@ -526,9 +562,10 @@
   <section class="card"><div class="panel" id="sweepCard"></div></section>
   <section class="card fxcard"><div class="panel" id="fixturesCard"></div></section>
   <section class="card"><div class="panel" id="koCard"></div></section>
+  <section class="card"><div class="panel" id="albumCard"></div></section>
   </div><!-- /deck -->
 
-  <div class="dots" id="dots"><i class="on"></i><i></i><i></i><i></i></div>
+  <div class="dots" id="dots"><i class="on"></i><i></i><i></i><i></i><i></i></div>
 
   <button class="installbtn hidden" id="installBtn">📲 Add to Home Screen</button>
 </div>
@@ -555,7 +592,11 @@
 <script>
 (function(){
   const C = window.WC, PLAYERS = window.PLAYERS;
+  const STICKERS = window.STICKERS || [];
   const $ = id => document.getElementById(id);
+  // deal everyone a vintage legend, stable per name (same name → same sticker)
+  function hashStr(s){ s=String(s); let h=0; for(let i=0;i<s.length;i++) h=(h*31 + s.charCodeAt(i))|0; return Math.abs(h); }
+  function stickerFor(name){ if(!STICKERS.length) return null; const s=STICKERS[hashStr(name)%STICKERS.length]; return {f:s[0]+".jpg", who:s[1]}; }
   let view = "guess";
   let liveGames = [];        // matches currently in progress (from ESPN)
   let completedMatches = []; // every finished match this tournament (from ESPN)
@@ -654,7 +695,13 @@
                   : stillNeed <= 0 ? "already past"
                   : `${stillNeed} in ${remaining} left`;
 
-    return `<div class="dgrid">
+    const stk = stickerFor(p.name);
+    const stkHTML = stk ? `<div class="psticker">
+        <img src="assets/stickers/${stk.f}" alt="${esc(stk.who)}" loading="lazy">
+        <div class="pcap"><span>Your surprise sticker</span><b>${esc(stk.who)}</b></div>
+      </div>` : "";
+
+    return stkHTML + `<div class="dgrid">
         <div class="ds"><div class="dl">What was needed</div><div class="dv">${f(implied)}</div><div class="du">per game · all ${total}</div></div>
         <div class="ds"><div class="dl">Pace so far</div><div class="dv">${f(gpg)}</div><div class="du">${played} game${played===1?"":"s"} in</div></div>
         <div class="ds"><div class="dl">Needs now</div><div class="dv">${needVal}</div><div class="du">${esc(needSub)}</div></div>
@@ -1314,6 +1361,33 @@
     card.innerHTML = html;
   }
 
+  // best-effort flag/logo for a team name, from standings or finished matches
+  function teamLogo(name){
+    const k = teamKey(name);
+    for(const arr of groupTables.values()){ const t=arr.find(x=>teamKey(x.name)===k); if(t&&t.logo) return t.logo; }
+    const t = teamStats().get(k); return t && t.logo;
+  }
+
+  // ---- the sticker album: every player, their two teams, their retro legend ----
+  function renderAlbum(){
+    const card = $("albumCard"); if(!card) return;
+    let html = `<div class="head"><div class="eyebrow"><span class="kicker">The sticker album</span></div>
+      <h1>The <b>Squad</b></h1></div>
+      <div class="swsub">Everyone's draw — both teams — and the vintage legend they got stuck with.</div>
+      <div class="album">`;
+    SWEEP.forEach(([owner,a,b])=>{
+      const s = stickerFor(owner);
+      const chip = (nm,pot)=>`<span class="alt"><span class="dot2" style="background:${pot==="A"?"var(--gold)":"#5aa9e6"}"></span>${flag(teamLogo(nm))}<span>${esc(nm)}</span></span>`;
+      html += `<div class="acard">
+        <div class="asticker">${s?`<img src="assets/stickers/${s.f}" alt="${esc(s.who)}" loading="lazy"><span class="awho">${esc(s.who)}</span>`:""}</div>
+        <div class="aname">${esc(owner)}</div>
+        <div class="ateams">${chip(a,"A")}${chip(b,"B")}</div>
+      </div>`;
+    });
+    html += `</div><div class="acredit">Vintage stickers · public-domain / CC0 via Wikimedia Commons</div>`;
+    card.innerHTML = html;
+  }
+
   function render(animate){
     const d = compute();
     countUp($("goalsNow"), d.goals, 0);
@@ -1325,6 +1399,7 @@
     renderSweep();
     renderFixtures();
     renderKnockout();
+    renderAlbum();
     $("goalsSub").textContent = liveGames.length
       ? `${liveGames.length} match${liveGames.length>1?"es":""} live now`
       : "across the tournament";
