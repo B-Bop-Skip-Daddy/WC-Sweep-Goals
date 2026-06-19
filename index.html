@@ -408,6 +408,22 @@
   .koslot{font:700 10.5px/1.3 Arial;color:var(--muted)}
   .ft2.h .koslot{text-align:right}
   .fx .ft2.pred .tn{color:var(--gold)}
+  .fx.tie{cursor:pointer}
+  .mid .tcv{font:700 10px/1 Arial;color:var(--muted);margin-top:3px;opacity:.7}
+
+  /* ---- knockout tie drop-down: the two groups behind a slot ---- */
+  .tiebody{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:-1px 12px 7px;animation:detailIn .2s ease both}
+  .gtbl{border:1px solid var(--chalk);background:rgba(0,0,0,.24);border-radius:10px;padding:7px 8px;display:flex;flex-direction:column;gap:3px}
+  .gth{font:800 8.5px/1.25 Arial;letter-spacing:.05em;text-transform:uppercase;color:#bfe6cf;padding:1px 1px 4px}
+  .gtr{display:grid;grid-template-columns:13px 16px 1fr auto;align-items:center;gap:6px;padding:4px 5px;border-radius:6px}
+  .gtr.hl{background:rgba(245,197,24,.16);box-shadow:inset 0 0 0 1px rgba(245,197,24,.4)}
+  .gtr .gr{font:800 10px/1 "Arial Narrow",Arial;color:var(--muted);text-align:center;font-variant-numeric:tabular-nums}
+  .gtr img{width:16px;height:11px;object-fit:contain}
+  .gtr .gn{font:800 11px/1 "Arial Narrow",Arial;text-transform:uppercase;letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .gtr.hl .gn{color:var(--gold)}
+  .gtr .gp{font:800 11px/1 Arial;font-variant-numeric:tabular-nums}
+  .gtr .gp small{font:600 7px/1 Arial;color:var(--muted);margin-left:2px}
+  .gtnote{font:600 10px/1.3 Arial;color:var(--muted);padding:4px 2px}
 </style>
 </head>
 <body>
@@ -1121,8 +1137,8 @@
         const L = (/Group ([A-L])/.exec(g.name||"")||[])[1]; if(!L) return;
         const entries = ((g.standings||{}).entries||[]).map(e=>{
           const st={}; (e.stats||[]).forEach(x=> st[x.name||x.abbreviation]=x.value);
-          return { name:(e.team||{}).displayName||"", logo:(e.team||{}).logo,
-                   pts:+st.points||0, gd:+st.pointDifferential||0, gf:+st.pointsFor||0, rank:+st.rank||99 };
+          return { name:(e.team||{}).displayName||"", abbr:(e.team||{}).abbreviation||"", logo:(e.team||{}).logo,
+                   pts:+st.points||0, gd:+st.pointDifferential||0, gf:+st.pointsFor||0, played:+st.gamesPlayed||0, rank:+st.rank||99 };
         }).sort((a,b)=>a.rank-b.rank);
         if(entries.length) M.set(L, entries);
       });
@@ -1137,9 +1153,7 @@
     const out = new Map();
     if(!groupTables.size) return out;
     const teamObj = t => { const o=ownerOf(t.name); return {name:t.name, logo:t.logo, owner:o&&o.owner}; };
-    const thirds = [...groupTables.entries()]
-      .map(([L,a])=> a[2] && {...a[2], grp:L}).filter(Boolean)
-      .sort((x,y)=> y.pts-x.pts || y.gd-x.gd || y.gf-x.gf);     // best third-placed first
+    const thirds = bestThirds();                                 // best third-placed first
     const qualified = new Set(thirds.slice(0,8).map(t=>t.grp)), used = new Set();
     const pickThird = letters => {
       for(const t of thirds) if(letters.includes(t.grp) && qualified.has(t.grp) && !used.has(t.grp)){ used.add(t.grp); return t; }
@@ -1173,7 +1187,50 @@
     return name;
   };
 
-  let koPredict = false;   // fill the bracket with the most-likely draw
+  // third-placed teams across all groups, best first (group-stage ranking rules)
+  function bestThirds(){
+    return [...groupTables.entries()].map(([L,a])=> a[2] && {...a[2], grp:L}).filter(Boolean)
+      .sort((x,y)=> y.pts-x.pts || y.gd-x.gd || y.gf-x.gf);
+  }
+  const qualifiedThirdSet = () => new Set(bestThirds().slice(0,8).map(t=>t.grp));
+
+  // what a bracket slot points at: a group position, the best-third pool, or nothing
+  function sideRef(rawName){
+    let m;
+    if(m=/^Group ([A-L]) Winner$/.exec(rawName))     return {kind:"pos", grp:m[1], rank:1};
+    if(m=/^Group ([A-L]) 2nd Place$/.exec(rawName))  return {kind:"pos", grp:m[1], rank:2};
+    if(m=/^Third Place Group ([A-L\/]+)$/.exec(rawName)) return {kind:"third", groups:m[1].split("/")};
+    if(isReal(rawName)){                              // a team already placed — find its group
+      const k=teamKey(rawName);
+      for(const [L,arr] of groupTables){ const t=arr.find(x=>teamKey(x.name)===k); if(t) return {kind:"pos", grp:L, rank:t.rank}; }
+      return {kind:"name", name:rawName};
+    }
+    return {kind:"ref", label:prettySlot(rawName)};
+  }
+
+  // a group's four teams in current order, the relevant position highlighted
+  function groupColHTML(grp, hi){
+    const arr = groupTables.get(grp) || [];
+    if(!arr.length) return `<div class="gtbl"><div class="gth">Group ${grp}</div><div class="gtnote">Table loading…</div></div>`;
+    return `<div class="gtbl"><div class="gth">Group ${grp}</div>` +
+      arr.map(t=>`<div class="gtr${t.rank===hi?" hl":""}"><span class="gr">${t.rank}</span>${flag(t.logo)}<span class="gn">${esc(t.abbr||t.name)}</span><span class="gp">${t.pts}<small>pts</small></span></div>`).join("") +
+      `</div>`;
+  }
+  // the third-placed contenders for a best-third slot; current qualifiers highlighted
+  function thirdColHTML(groups){
+    const qual = qualifiedThirdSet(), rows = bestThirds().filter(t=>groups.includes(t.grp));
+    return `<div class="gtbl"><div class="gth">Best 3rd · ${esc(groups.join("/"))}</div>` +
+      (rows.length ? rows.map(t=>`<div class="gtr${qual.has(t.grp)?" hl":""}"><span class="gr">${t.grp}</span>${flag(t.logo)}<span class="gn">${esc(t.abbr||t.name)}</span><span class="gp">${t.pts}<small>pts</small></span></div>`).join("")
+        : `<div class="gtnote">Table loading…</div>`) + `</div>`;
+  }
+  function sideColHTML(ref){
+    if(ref.kind==="pos")   return groupColHTML(ref.grp, ref.rank);
+    if(ref.kind==="third") return thirdColHTML(ref.groups);
+    return `<div class="gtbl"><div class="gth">${esc(ref.label||ref.name||"TBD")}</div><div class="gtnote">Set once teams advance.</div></div>`;
+  }
+
+  const expandedTies = new Set();   // knockout tie ids whose group drop-down is open
+  let koPredict = false;            // fill the bracket with the most-likely draw
   function renderKnockout(){
     const card = $("koCard"); if(!card) return;
     const ko = [...completedMatches,...liveGames,...upcomingMatches]
@@ -1208,11 +1265,19 @@
       : m.clock  ? `<div class="pred lv">${m.hs}–${m.as}</div><div class="ko lv">${esc(m.clock)}</div>`
       : `<div class="vs">vs</div><div class="ko">${esc(m.date.toLocaleDateString(undefined,{month:"short",day:"numeric"}))}</div>`;
 
+    const expandable = r => r.kind==="pos" || r.kind==="third";
     KO_ORDER.forEach(rd=>{
       const rs = ko.filter(x=>x.round===rd); if(!rs.length) return;
       rs.sort((a,b)=>a.m.date-b.m.date);
       html += `<div class="fxday koround"><h4>${rd}</h4>`;
-      rs.forEach(({m})=> html += `<div class="fx${m.clock?" islive":""}">${tieSide(m,true)}<div class="mid">${tieMid(m)}</div>${tieSide(m,false)}</div>`);
+      rs.forEach(({m})=>{
+        const rh = sideRef(m.homeName||m.home), ra = sideRef(m.awayName||m.away);
+        const canOpen = expandable(rh) || expandable(ra);
+        const open = expandedTies.has(String(m.id));
+        html += `<div class="fx${m.clock?" islive":""}${canOpen?" tie":""}"${canOpen?` role="button" tabindex="0" aria-expanded="${open}" data-tie="${esc(m.id)}"`:""}>`
+          + `${tieSide(m,true)}<div class="mid">${tieMid(m)}${canOpen?`<div class="tcv">${open?"▴":"▾"}</div>`:""}</div>${tieSide(m,false)}</div>`;
+        if(canOpen && open) html += `<div class="tiebody">${sideColHTML(rh)}${sideColHTML(ra)}</div>`;
+      });
       html += `</div>`;
     });
     card.innerHTML = html;
@@ -1369,9 +1434,15 @@
     const tm = e.target.closest("[data-team]"); if(tm){ e.preventDefault(); toggleTeam(tm); }
   });
 
-  // knockout: flip between bracket slots and the predicted draw
+  // knockout: flip slots/predict, or tap a tie to drop down its group tables
+  const toggleTie = id => { expandedTies.has(id)?expandedTies.delete(id):expandedTies.add(id); renderKnockout(); };
   $("koCard").addEventListener("click", e=>{
-    const b = e.target.closest("[data-ko]"); if(b){ koPredict = b.dataset.ko==="on"; renderKnockout(); }
+    const b = e.target.closest("[data-ko]"); if(b){ koPredict = b.dataset.ko==="on"; renderKnockout(); return; }
+    const t = e.target.closest("[data-tie]"); if(t) toggleTie(t.dataset.tie);
+  });
+  $("koCard").addEventListener("keydown", e=>{
+    if(e.key!=="Enter" && e.key!==" ") return;
+    const t = e.target.closest("[data-tie]"); if(t){ e.preventDefault(); toggleTie(t.dataset.tie); }
   });
 
   // fixtures: predicted-score toggle + jump back to today
