@@ -26,7 +26,8 @@
     TOTAL_MATCHES: 104,      // fixed: 72 group + 32 knockout (2026 format)
     SITE_URL: "https://wc-sweep-goals.vercel.app",   // live link used in the share message
     RULE: "closest",         // "closest"  or  "under" (closest without going over)
-    FEED: "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard?limit=300&dates=20260611-20260719"
+    FEED: "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard?limit=300&dates=20260611-20260719",
+    STANDINGS: "https://site.api.espn.com/apis/v2/sports/soccer/fifa.world/standings?season=2026"  // live group tables (drives the predicted R32 draw)
   };
   // The crew + their guesses for the total tournament goal count
   window.PLAYERS = [
@@ -404,6 +405,9 @@
   .koround h4{font:800 11px/1 Arial;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);padding:14px 2px 8px}
   .koempty{padding:30px 22px 34px;text-align:center;color:#bfe6cf;font:600 13px/1.6 Arial}
   .koempty b{color:#fff;font-weight:800}
+  .koslot{font:700 10.5px/1.3 Arial;color:var(--muted)}
+  .ft2.h .koslot{text-align:right}
+  .fx .ft2.pred .tn{color:var(--gold)}
 </style>
 </head>
 <body>
@@ -530,6 +534,7 @@
   let liveGames = [];        // matches currently in progress (from ESPN)
   let completedMatches = []; // every finished match this tournament (from ESPN)
   let upcomingMatches = [];  // scheduled matches not yet kicked off (fixtures/bracket)
+  let groupTables = new Map();  // group letter -> entries (live standings, for the R32 prediction)
   let selectedDayKey = null; // which matchday the results panel is showing (null = latest)
   let resultsOpen = false;   // results drop-down: header+ripple always show, list folds away
   let pollTimer = null;
@@ -1107,34 +1112,107 @@
   // (bracket placeholders like "Group A 2nd Place" are not).
   const isReal = name => OWNER.has(teamKey(name));
 
+  // ---- live group tables drive the predicted Round-of-32 draw ----
+  async function fetchStandings(){
+    try{
+      const res = await fetch(C.STANDINGS, {cache:"no-store"}); if(!res.ok) throw 0;
+      const s = await res.json(); const M = new Map();
+      (s.children||[]).forEach(g=>{
+        const L = (/Group ([A-L])/.exec(g.name||"")||[])[1]; if(!L) return;
+        const entries = ((g.standings||{}).entries||[]).map(e=>{
+          const st={}; (e.stats||[]).forEach(x=> st[x.name||x.abbreviation]=x.value);
+          return { name:(e.team||{}).displayName||"", logo:(e.team||{}).logo,
+                   pts:+st.points||0, gd:+st.pointDifferential||0, gf:+st.pointsFor||0, rank:+st.rank||99 };
+        }).sort((a,b)=>a.rank-b.rank);
+        if(entries.length) M.set(L, entries);
+      });
+      if(M.size){ groupTables = M; renderKnockout(); }
+    }catch(e){}
+  }
+
+  // predicted team for each Round-of-32 slot, from the group tables so far.
+  // (deeper rounds reference match winners in inconsistent feed data, so they
+  //  stay as readable labels rather than guessing wrong.)
+  function predictR32(){
+    const out = new Map();
+    if(!groupTables.size) return out;
+    const teamObj = t => { const o=ownerOf(t.name); return {name:t.name, logo:t.logo, owner:o&&o.owner}; };
+    const thirds = [...groupTables.entries()]
+      .map(([L,a])=> a[2] && {...a[2], grp:L}).filter(Boolean)
+      .sort((x,y)=> y.pts-x.pts || y.gd-x.gd || y.gf-x.gf);     // best third-placed first
+    const qualified = new Set(thirds.slice(0,8).map(t=>t.grp)), used = new Set();
+    const pickThird = letters => {
+      for(const t of thirds) if(letters.includes(t.grp) && qualified.has(t.grp) && !used.has(t.grp)){ used.add(t.grp); return t; }
+      for(const t of thirds) if(letters.includes(t.grp) && !used.has(t.grp)){ used.add(t.grp); return t; }
+      return null;
+    };
+    const side = name => {
+      if(isReal(name)){ const o=ownerOf(name); return {name, owner:o&&o.owner, logo:null}; }
+      let m;
+      if(m=/^Group ([A-L]) Winner$/.exec(name)){ const t=(groupTables.get(m[1])||[])[0]; return t&&teamObj(t); }
+      if(m=/^Group ([A-L]) 2nd Place$/.exec(name)){ const t=(groupTables.get(m[1])||[])[1]; return t&&teamObj(t); }
+      if(m=/^Third Place Group ([A-L\/]+)$/.exec(name)){ const t=pickThird(m[1].split("/")); return t&&teamObj(t); }
+      return null;
+    };
+    [...completedMatches,...liveGames,...upcomingMatches]
+      .filter(m=>koRound(m)==="Round of 32").sort((a,b)=>a.date-b.date)
+      .forEach(m=> out.set(m.id, {home:side(m.homeName||m.home), away:side(m.awayName||m.away)}));
+    return out;
+  }
+
+  const prettySlot = name => {
+    let m;
+    if(m=/^Group ([A-L]) Winner$/.exec(name))        return `Group ${m[1]} · winner`;
+    if(m=/^Group ([A-L]) 2nd Place$/.exec(name))     return `Group ${m[1]} · runner-up`;
+    if(m=/^Third Place Group ([A-L\/]+)$/.exec(name))return `Best 3rd · ${m[1]}`;
+    if(m=/^Round of 32 (\d+) Winner$/.exec(name))    return `Winner · R32-${m[1]}`;
+    if(m=/^Round of 16 (\d+) Winner$/.exec(name))    return `Winner · R16-${m[1]}`;
+    if(m=/^Quarterfinal (\d+) Winner$/.exec(name))   return `Winner · QF${m[1]}`;
+    if(m=/^Semifinal (\d+) Winner$/.exec(name))      return `Winner · SF${m[1]}`;
+    if(m=/^Semifinal (\d+) Loser$/.exec(name))       return `Loser · SF${m[1]}`;
+    return name;
+  };
+
+  let koPredict = false;   // fill the bracket with the most-likely draw
   function renderKnockout(){
     const card = $("koCard"); if(!card) return;
-    // only ties whose BOTH sides have resolved to real teams — no placeholder slots
-    const all = [...completedMatches, ...liveGames, ...upcomingMatches]
-      .map(m=>({m, round:koRound(m)}))
-      .filter(x=>x.round && isReal(x.m.homeName||x.m.home) && isReal(x.m.awayName||x.m.away));
-    let html = `<div class="head"><div class="eyebrow"><span class="kicker">Who's drawn who</span></div>
-      <h1>The <b>Knockouts</b></h1></div>`;
-    if(!all.length){
-      html += `<div class="koempty">The bracket locks when the group stage wraps.<br><br>
-        Once the <b>Round of 32</b> is drawn, every tie lands here with <b>each player's name under their team</b> — so the whole crew can see who's up against who.</div>`;
+    const ko = [...completedMatches,...liveGames,...upcomingMatches]
+      .map(m=>({m, round:koRound(m)})).filter(x=>x.round);
+    let html = `<div class="head"><div class="eyebrow"><span class="kicker">The bracket · who plays who</span></div>
+      <h1>The <b>Knockouts</b></h1></div>
+      <div class="barhead"><span class="t">${koPredict?"Most-likely draw":"Bracket slots"}</span>
+        <div class="toggle">
+          <button data-ko="off" class="${koPredict?"":"on"}">Slots</button>
+          <button data-ko="on" class="${koPredict?"on":""}">Predict</button>
+        </div></div>`;
+    if(!ko.length){
+      html += `<div class="koempty">The bracket appears here once the schedule is in.</div>`;
       card.innerHTML = html; return;
     }
+    const preds = koPredict ? predictR32() : null;
+    if(koPredict) html += `<div class="swsub">From the group tables so far — winners, runners-up and the best third-placed sides. Deeper rounds fill in as teams come through.</div>`;
+
+    const tieSide = (m, h) => {
+      const raw = h ? (m.homeName||m.home) : (m.awayName||m.away);
+      const abbr = h ? m.home : m.away, logo = h ? m.hl : m.al;
+      const cls = `ft2${h?" h":""}`;
+      const line = (nm,lg)=> h ? `${esc(nm)}${flag(lg)}` : `${flag(lg)}${esc(nm)}`;
+      if(isReal(raw)){ const o=ownerOf(raw);
+        return `<div class="${cls}"><span class="tn">${line(abbr,logo)}</span>${o?`<span class="own2">${esc(o.owner)}</span>`:""}</div>`; }
+      if(koPredict && preds){ const p=preds.get(m.id), t=p&&p[h?"home":"away"];
+        if(t) return `<div class="${cls} pred"><span class="tn">${line(t.name,t.logo)}</span>${t.owner?`<span class="own2">${esc(t.owner)}</span>`:""}</div>`; }
+      return `<div class="${cls}"><span class="koslot">${esc(prettySlot(raw))}</span></div>`;
+    };
+    const tieMid = m =>
+        m.detail ? `<div class="pred">${m.hs}–${m.as}</div><div class="ko">${esc(m.detail)}</div>`
+      : m.clock  ? `<div class="pred lv">${m.hs}–${m.as}</div><div class="ko lv">${esc(m.clock)}</div>`
+      : `<div class="vs">vs</div><div class="ko">${esc(m.date.toLocaleDateString(undefined,{month:"short",day:"numeric"}))}</div>`;
+
     KO_ORDER.forEach(rd=>{
-      const rs = all.filter(x=>x.round===rd); if(!rs.length) return;
+      const rs = ko.filter(x=>x.round===rd); if(!rs.length) return;
       rs.sort((a,b)=>a.m.date-b.m.date);
       html += `<div class="fxday koround"><h4>${rd}</h4>`;
-      rs.forEach(({m})=>{
-        const oh = ownerOf(m.homeName||m.home), oa = ownerOf(m.awayName||m.away);
-        const played = m.detail || m.clock;          // finished or live → show the score
-        const sc = played ? `${m.hs}–${m.as}` : "vs";
-        const sub = m.detail || m.clock || m.date.toLocaleDateString(undefined,{month:"short",day:"numeric"});
-        html += `<div class="fx">
-          <div class="ft2 h"><span class="tn">${esc(m.home)}${flag(m.hl)}</span>${oh?`<span class="own2">${esc(oh.owner)}</span>`:""}</div>
-          <div class="mid"><div class="pred">${sc}</div><div class="ko">${esc(sub)}</div></div>
-          <div class="ft2"><span class="tn">${flag(m.al)}${esc(m.away)}</span>${oa?`<span class="own2">${esc(oa.owner)}</span>`:""}</div>
-        </div>`;
-      });
+      rs.forEach(({m})=> html += `<div class="fx${m.clock?" islive":""}">${tieSide(m,true)}<div class="mid">${tieMid(m)}</div>${tieSide(m,false)}</div>`);
       html += `</div>`;
     });
     card.innerHTML = html;
@@ -1253,6 +1331,7 @@
       liveGames=games; completedMatches=done; upcomingMatches=soon;
       setBadge(true); render();
       scanFirstRed();                                   // settle the £48 (first red card)
+      fetchStandings();                                 // refresh group tables for the R32 prediction
     }catch(e){
       setBadge(false); render();
     }
@@ -1288,6 +1367,11 @@
   $("sweepCard").addEventListener("keydown", e=>{
     if(e.key!=="Enter" && e.key!==" ") return;
     const tm = e.target.closest("[data-team]"); if(tm){ e.preventDefault(); toggleTeam(tm); }
+  });
+
+  // knockout: flip between bracket slots and the predicted draw
+  $("koCard").addEventListener("click", e=>{
+    const b = e.target.closest("[data-ko]"); if(b){ koPredict = b.dataset.ko==="on"; renderKnockout(); }
   });
 
   // fixtures: predicted-score toggle + jump back to today
