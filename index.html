@@ -361,9 +361,11 @@
     font-variant-numeric:tabular-nums;flex:0 0 auto;padding-left:6px}
 
   /* ---- fixtures: full results + schedule timeline ---- */
-  .fxtoday{border:1px solid rgba(245,197,24,.42);background:rgba(245,197,24,.13);color:var(--gold);
+  .fxnav{display:flex;gap:6px}
+  .fxbtn{border:1px solid var(--chalk);background:rgba(255,255,255,.05);color:var(--muted);
     cursor:pointer;border-radius:999px;padding:6px 11px;font:800 9.5px/1 Arial;letter-spacing:.08em;text-transform:uppercase}
-  .fxtoday:active{transform:translateY(1px)}
+  .fxbtn.gold{border-color:rgba(245,197,24,.42);background:rgba(245,197,24,.13);color:var(--gold)}
+  .fxbtn:active{transform:translateY(1px)}
   .fximpact{margin:0 14px 4px;padding:11px 13px;border-radius:12px;
     background:linear-gradient(90deg,rgba(245,197,24,.16),rgba(245,197,24,.04));
     border:1px solid rgba(245,197,24,.32);font:600 12px/1.45 Arial;color:#bfe6cf}
@@ -1027,7 +1029,7 @@
 
     let html = `<div class="head">
         <div class="eyebrow"><span class="kicker">Results &amp; fixtures</span>
-          <button class="fxtoday" id="fxToday">↑ Today</button></div>
+          <span class="fxnav"><button class="fxbtn" id="fxTop">↑ Top</button><button class="fxbtn gold" id="fxToday">Today</button></span></div>
         <h1>The <b>Schedule</b></h1></div>
       <div class="barhead"><span class="t">Predicted scores</span>
         <div class="toggle">
@@ -1037,21 +1039,23 @@
 
     if(!all.length){
       html += `<div class="koempty">No games in the feed yet.</div>`;
-      card.innerHTML = html; fxInit = true; return;
+      card.innerHTML = html; return;   // don't arm the scroll flag until there's real data
     }
 
     html += impact + `<div class="fxscroll" id="fxScroll">`;
 
-    // land on the game that's up next: a live game, else the next kickoff
+    // anchor on today's date — or the next day with games if today is a rest day.
+    // the up-next game still gets its own marker for the eye.
     const nextMatch = all.find(m=>m.state==="live") || all.find(m=>m.state==="soon") || null;
-    const nextKey = nextMatch ? gameDayKey(nextMatch.date) : null;
     const byDay = new Map();
     all.forEach(m=>{ const k=gameDayKey(m.date); if(!byDay.has(k))byDay.set(k,[]); byDay.get(k).push(m); });
     const keys = [...byDay.keys()].sort();
+    const todayKey = gameDayKey(new Date());
+    const anchorKey = keys.includes(todayKey) ? todayKey : (keys.find(k=>k>=todayKey) || keys[keys.length-1]);
 
     keys.forEach(k=>{
-      const isNow = k===nextKey;
-      html += `<div class="fxday"><div class="fxh${isNow?' now':''}">${esc(dayLabel(k))}</div>`;
+      const isToday = k===anchorKey;
+      html += `<div class="fxday"${isToday?' data-today="1"':''}><div class="fxh${isToday?' now':''}">${esc(dayLabel(k))}</div>`;
       byDay.get(k).forEach(m=>{
         const oh = ownerOf(m.homeName||m.home), oa = ownerOf(m.awayName||m.away);
         let mid;
@@ -1079,9 +1083,10 @@
     html += `</div>`;
     card.innerHTML = html;
 
-    // first paint drops you on the next game; later refreshes keep your place
+    // first real paint drops you on today's date; later refreshes keep your place
     const sc = $("fxScroll"); if(!sc) return;
-    if(!fxInit){ const t=sc.querySelector("[data-next]"); if(t) sc.scrollTop=Math.max(0,t.offsetTop-40); fxInit=true; }
+    const todayEl = sc.querySelector("[data-today]");
+    if(!fxInit && todayEl){ sc.scrollTop = Math.max(0, todayEl.offsetTop - 6); fxInit = true; }
     else sc.scrollTop = fxScrollPos;
     sc.addEventListener("scroll", ()=>{ fxScrollPos = sc.scrollTop; }, {passive:true});
   }
@@ -1290,8 +1295,12 @@
     const fx = e.target.closest("[data-fx]");
     if(fx){ fxPredict = fx.dataset.fx==="on"; renderFixtures(); return; }
     if(e.target.closest("#fxToday")){
-      const sc=$("fxScroll"), t=sc&&sc.querySelector("[data-next]");
-      if(sc&&t) sc.scrollTo({top:Math.max(0,t.offsetTop-40), behavior:"smooth"});
+      const sc=$("fxScroll"), t=sc&&sc.querySelector("[data-today]");
+      if(sc&&t) sc.scrollTo({top:Math.max(0,t.offsetTop-6), behavior:"smooth"});
+      return;
+    }
+    if(e.target.closest("#fxTop")){
+      const sc=$("fxScroll"); if(sc) sc.scrollTo({top:0, behavior:"smooth"});
     }
   });
 
