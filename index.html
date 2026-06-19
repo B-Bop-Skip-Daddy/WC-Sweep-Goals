@@ -934,6 +934,24 @@
   });
   const ownerOf = name => OWNER.get(teamKey(name)) || null;
 
+  // ---- team strength (FIFA ranking points). Top-20 exact (11 Jun 2026);
+  //      the rest are FIFA-scale estimates. Drives the fixture predictions. ----
+  const RATING_RAW = [
+    ["Argentina",1877],["Spain",1875],["France",1871],["England",1828],["Portugal",1768],
+    ["Brazil",1766],["Morocco",1755],["Netherlands",1754],["Belgium",1742],["Germany",1736],
+    ["Croatia",1715],["Colombia",1698],["Mexico",1687],["Senegal",1684],["Uruguay",1673],
+    ["USA",1671],["Japan",1662],["Switzerland",1650],["Iran",1620],["Austria",1615],
+    ["Türkiye",1600],["South Korea",1575],["Ecuador",1570],["Scotland",1565],["Sweden",1558],
+    ["Egypt",1530],["Norway",1535],["Ivory Coast",1530],["Czechia",1528],["Australia",1525],
+    ["Canada",1525],["Algeria",1520],["Tunisia",1500],["Panama",1490],["Paraguay",1488],
+    ["Bosnia & Herz.",1485],["DR Congo",1450],["Qatar",1450],["Uzbekistan",1440],["South Africa",1440],
+    ["Ghana",1432],["Saudi Arabia",1412],["Iraq",1410],["Cape Verde",1400],["Jordan",1388],
+    ["Curaçao",1330],["Haiti",1300],["New Zealand",1290]
+  ];
+  const RATINGS = new Map(RATING_RAW.map(([n,r])=>[teamKey(n), r]));
+  const RATING_DEFAULT = 1500, HOME_ADV = 25, RATING_DIV = 150;   // ~150 pts ≈ one goal of supremacy
+  const ratingOf = name => RATINGS.get(teamKey(name)) || RATING_DEFAULT;
+
   // goals for / against + record per team, from finished matches only
   function teamStats(){
     const M = new Map();
@@ -1080,13 +1098,26 @@
   let fxScrollPos = 0;     // remembered scroll position across re-renders
   const expandedFx = new Set();   // fixture ids whose group-table drop-down is open
 
-  // predicted scoreline from each team's scoring / conceding pace so far
-  function fxPredictScore(stats, gpg, h, a){
+  // expected goals for each side: a strength (FIFA-rating) supremacy model with
+  // a small home edge, then blended toward each team's live form as games pile up
+  function fxExpected(stats, gpg, h, a){
+    const T = Math.min(3.0, Math.max(2.2, gpg || 2.6));        // tournament scoring level
+    const D = (ratingOf(h) - ratingOf(a) + HOME_ADV) / RATING_DIV;  // expected goal supremacy
+    let lh = Math.max(0.05, (T + D)/2), la = Math.max(0.05, (T - D)/2);
+    // blend in what's actually happened, weighted by how many games they've played
     const avg = (name,k)=>{ const t=stats.get(teamKey(name)); return t&&t.p ? t[k]/t.p : null; };
+    const gp  = name => { const t=stats.get(teamKey(name)); return t ? t.p : 0; };
     const hf=avg(h,"gf"), hc=avg(h,"ga"), af=avg(a,"gf"), ac=avg(a,"ga");
-    const hx = (hf!=null&&ac!=null) ? (hf+ac)/2 : gpg/2;
-    const ax = (af!=null&&hc!=null) ? (af+hc)/2 : gpg/2;
-    return [Math.max(0,Math.round(hx)), Math.max(0,Math.round(ax))];
+    if(hf!=null && ac!=null && af!=null && hc!=null){
+      const n = Math.min(gp(h), gp(a)), w = n/(n+2.5);          // 0 games → pure rating; ramps with form
+      lh = (1-w)*lh + w*((hf+ac)/2);
+      la = (1-w)*la + w*((af+hc)/2);
+    }
+    return {h:lh, a:la};
+  }
+  function fxPredictScore(stats, gpg, h, a){
+    const e = fxExpected(stats, gpg, h, a);
+    return [Math.max(0,Math.round(e.h)), Math.max(0,Math.round(e.a))];
   }
 
   // tap a fixture to drop down where the two teams stand in their group(s)
@@ -1125,7 +1156,8 @@
     if(fxPredict){
       const soon = all.filter(m=>m.state==="soon");
       let pg = 0;
-      soon.forEach(m=>{ const [x,y]=fxPredictScore(stats,gpg,m.homeName||m.home,m.awayName||m.away); pg += x+y; });
+      soon.forEach(m=>{ const e=fxExpected(stats,gpg,m.homeName||m.home,m.awayName||m.away); pg += e.h+e.a; });
+      pg = Math.round(pg);
       const unknown = Math.max(0, d.total - d.played - soon.length);   // knockout slots not drawn yet
       const predTotal = Math.round(d.goals + pg + unknown*gpg);
       const base = d.proj;
