@@ -324,6 +324,29 @@
   .alt span:last-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .acredit{font:600 9px/1.3 Arial;color:var(--muted);text-align:center;padding:2px 12px 12px}
 
+  /* ---- Guess the Goals summary on the Sweeps page ---- */
+  .ggsum{margin:0 14px 12px;padding:11px 13px;border-radius:13px;
+    background:linear-gradient(90deg,rgba(90,169,230,.16),rgba(90,169,230,.03));
+    border:1px solid rgba(90,169,230,.32);display:flex;align-items:center;gap:11px}
+  .ggsum .ggtrophy{font-size:20px;filter:drop-shadow(0 2px 4px rgba(0,0,0,.4))}
+  .ggsum .ggt{flex:1;min-width:0}
+  .ggsum .ggk{font:800 9px/1.1 Arial;letter-spacing:.1em;text-transform:uppercase;color:#9ecbf0}
+  .ggsum .ggn{font:800 16px/1 "Arial Narrow",Arial;text-transform:uppercase;letter-spacing:.02em;margin-top:4px}
+  .ggsum .ggm{font:600 11px/1.35 Arial;color:var(--muted);margin-top:3px}
+  .ggsum .ggm b{color:#fff;font-weight:800}
+
+  /* ---- fixtures dropdown: live/finished match panel above the standings ---- */
+  .fxmatch{margin:-1px 12px 7px;border:1px solid var(--chalk);background:rgba(255,255,255,.04);
+    border-radius:10px;overflow:hidden;animation:detailIn .2s ease both}
+  .fxmsc{display:flex;align-items:center;gap:8px;padding:8px 11px;
+    font:800 13px/1 "Arial Narrow",Arial;text-transform:uppercase;letter-spacing:.02em}
+  .fxmsc b{font:900 16px/1 Arial;font-variant-numeric:tabular-nums}
+  .fxmsc i{margin-left:auto;font:800 9px/1 Arial;font-style:normal;letter-spacing:.06em;
+    text-transform:uppercase;padding:4px 7px;border-radius:999px}
+  .fxmsc i.lv{color:var(--good);background:rgba(21,211,90,.14)}
+  .fxmsc i.ft{color:var(--muted);background:rgba(255,255,255,.08)}
+  .fxmatch .lgwrap.result{border:0;border-top:1px solid var(--chalk);border-radius:0;background:transparent}
+
   .hidden{display:none !important}
 
   /* ============ swipe deck (thumb across to the next competition) ============ */
@@ -487,14 +510,16 @@
 
   <!-- ---- swipe between competitions ---- -->
   <div class="decktabs" id="decktabs">
-    <button data-go="0" class="on">Goals</button>
+    <button data-go="0" class="on">Fixtures</button>
     <button data-go="1">Sweeps</button>
-    <button data-go="2">Fixtures</button>
+    <button data-go="2">Goals</button>
     <button data-go="3">Knockout</button>
     <button data-go="4">Album</button>
   </div>
 
   <div class="deck" id="deck">
+  <section class="card fxcard"><div class="panel" id="fixturesCard"></div></section>
+  <section class="card"><div class="panel" id="sweepCard"></div></section>
   <section class="card">
 
   <!-- ============ SCREENSHOT TARGET ============ -->
@@ -565,8 +590,6 @@
   <!-- ============ /SCREENSHOT TARGET ============ -->
   </section>
 
-  <section class="card"><div class="panel" id="sweepCard"></div></section>
-  <section class="card fxcard"><div class="panel" id="fixturesCard"></div></section>
   <section class="card"><div class="panel" id="koCard"></div></section>
   <section class="card"><div class="panel" id="albumCard"></div></section>
   </div><!-- /deck -->
@@ -1028,6 +1051,10 @@
     const ranked = [...stats.values()].filter(t=>t.p>0)
       .sort((a,b)=> b.ga-a.ga || (b.ga/b.p)-(a.ga/a.p) || b.gf-a.gf);
     const top = ranked[0] || null, topO = top ? ownerOf(top.name) : null;
+    // Guess the Goals summary (the other competition) — £5 a head
+    const gg = compute();
+    const ggLead = [...gg.list].sort((a,b)=>a.dist-b.dist || b.guess-a.guess)[0];
+    const ggPot = SWEEP.length * 5;
 
     // prizes that can be settled from results already in (round = host-date bucket)
     const finalM = completedMatches.find(m=>koRound(m)==="Final");
@@ -1051,6 +1078,14 @@
         ${chip("","🥉 Third",POT.third, ob?`<b>${esc(ob.owner)}</b> · ${esc(bronze)}`:"Third-place play-off")}
         ${chip("","🚿 Most conceded",POT.conceded, top?`${topO?`<b>${esc(topO.owner)}</b> · `:""}${esc(top.name)} (${top.ga})`:"After kick-off")}
         ${chip("red","🟥 First red",POT.red, redWon)}
+      </div>
+      <div class="ggsum">
+        <span class="ggtrophy">🥅</span>
+        <div class="ggt">
+          <div class="ggk">Guess the Goals · £${ggPot} pot</div>
+          <div class="ggn">${esc(ggLead.name)} out in front</div>
+          <div class="ggm">guessed <b>${ggLead.guess}</b> · projection <b>${gg.proj==null?"—":gg.proj}</b>${(gg.proj!=null&&isFinite(ggLead.dist))?` · off by ${ggLead.dist}`:""}</div>
+        </div>
       </div>
       <div class="barhead"><span class="t">${sweepView==="teams"?"Goals conceded · live":"Every player's two teams"}</span>
         <div class="toggle">
@@ -1120,21 +1155,32 @@
     return [Math.max(0,Math.round(e.h)), Math.max(0,Math.round(e.a))];
   }
 
-  // tap a fixture to drop down where the two teams stand in their group(s)
+  // tap a fixture to drop down: match detail (live/finished) then group standings
   function fxExpandable(m){
+    if(m.state==="live" || m.state==="done") return true;
     return sideRef(m.homeName||m.home).kind==="pos" || sideRef(m.awayName||m.away).kind==="pos";
+  }
+  function fxMatchPanel(m){
+    if(m.state!=="live" && m.state!=="done") return "";
+    const status = m.state==="live" ? (m.clock||"LIVE") : (m.detail||"FT");
+    return `<div class="fxmatch">
+        <div class="fxmsc"><span>${esc(m.home)}</span><b>${m.hs}–${m.as}</b><span>${esc(m.away)}</span><i class="${m.state==="live"?"lv":"ft"}">${esc(status)}</i></div>
+        <div class="lgwrap result" data-id="${esc(m.id)}"><div class="lgdetail">${detailHTML(detailsCache[m.id])}</div></div>
+      </div>`;
   }
   function fxTieBody(m){
     const rh = sideRef(m.homeName||m.home), ra = sideRef(m.awayName||m.away);
     const pos = r => r.kind==="pos";
+    let cols = "";
     if(pos(rh) && pos(ra) && rh.grp===ra.grp){          // same group → one table, both highlighted
       const ranks = new Set([rh.rank, ra.rank]);
-      return `<div class="tiebody">${groupColHTML(rh.grp, t=>ranks.has(t.rank))}</div>`;
+      cols = groupColHTML(rh.grp, t=>ranks.has(t.rank));
+    } else {
+      if(pos(rh)) cols += groupColHTML(rh.grp, t=>t.rank===rh.rank);
+      if(pos(ra)) cols += groupColHTML(ra.grp, t=>t.rank===ra.rank);
     }
-    let cols = "";
-    if(pos(rh)) cols += groupColHTML(rh.grp, t=>t.rank===rh.rank);
-    if(pos(ra)) cols += groupColHTML(ra.grp, t=>t.rank===ra.rank);
-    return cols ? `<div class="tiebody">${cols}</div>` : "";
+    const groups = cols ? `<div class="tiebody">${cols}</div>` : "";
+    return fxMatchPanel(m) + groups;
   }
 
   function renderFixtures(){
@@ -1224,6 +1270,9 @@
     });
     html += `</div>`;
     card.innerHTML = html;
+
+    // pull match timelines for any expanded live / finished games
+    expandedFx.forEach(id=>{ const m=all.find(x=>String(x.id)===String(id)); if(m && (m.state==="live"||m.state==="done")) loadDetails(m.id); });
 
     // first real paint drops you on today's date; later refreshes keep your place
     const sc = $("fxScroll"); if(!sc) return;
