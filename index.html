@@ -347,6 +347,15 @@
   .fxmsc i.ft{color:var(--muted);background:rgba(255,255,255,.08)}
   .fxmatch .lgwrap.result{border:0;border-top:1px solid var(--chalk);border-radius:0;background:transparent}
 
+  /* ---- fixtures dropdown: highlights / where-to-watch links ---- */
+  .fxlinks{display:flex;gap:7px;flex-wrap:wrap;margin:-1px 12px 8px}
+  .fxlink{display:inline-flex;align-items:center;gap:5px;text-decoration:none;
+    font:800 10px/1 Arial;letter-spacing:.04em;text-transform:uppercase;
+    padding:8px 11px;border-radius:9px;border:1px solid var(--chalk);background:rgba(255,255,255,.05)}
+  .fxlink.hl{color:#ff7a76;border-color:rgba(232,65,60,.4);background:rgba(232,65,60,.09)}
+  .fxlink.wt{color:#bfe6cf}
+  .fxlink:active{transform:translateY(1px)}
+
   .hidden{display:none !important}
 
   /* ============ swipe deck (thumb across to the next competition) ============ */
@@ -1168,6 +1177,19 @@
         <div class="lgwrap result" data-id="${esc(m.id)}"><div class="lgdetail">${detailHTML(detailsCache[m.id])}</div></div>
       </div>`;
   }
+  // region-aware outbound links — the destination services localise themselves,
+  // so we never need to know where the viewer is.
+  function fxLinks(m){
+    const q = encodeURIComponent(`${m.homeName||m.home} vs ${m.awayName||m.away} World Cup 2026`);
+    const out = [];
+    if(m.state==="done")
+      out.push(`<a class="fxlink hl" target="_blank" rel="noopener" href="https://www.youtube.com/results?search_query=${q}+highlights">▶ Highlights</a>`);
+    if(m.state==="live")
+      out.push(`<a class="fxlink wt" target="_blank" rel="noopener" href="https://www.google.com/search?q=${q}+live+stream+where+to+watch">📺 Watch live</a>`);
+    if(m.state==="soon")
+      out.push(`<a class="fxlink wt" target="_blank" rel="noopener" href="https://www.google.com/search?q=${q}+where+to+watch+tv+channel">📺 Where to watch</a>`);
+    return out.length ? `<div class="fxlinks">${out.join("")}</div>` : "";
+  }
   function fxTieBody(m){
     const rh = sideRef(m.homeName||m.home), ra = sideRef(m.awayName||m.away);
     const pos = r => r.kind==="pos";
@@ -1180,7 +1202,7 @@
       if(pos(ra)) cols += groupColHTML(ra.grp, t=>t.rank===ra.rank);
     }
     const groups = cols ? `<div class="tiebody">${cols}</div>` : "";
-    return fxMatchPanel(m) + groups;
+    return fxMatchPanel(m) + fxLinks(m) + groups;
   }
 
   function renderFixtures(){
