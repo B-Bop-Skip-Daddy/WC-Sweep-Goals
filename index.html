@@ -384,8 +384,9 @@
   .bktties:not(.r32){justify-content:space-around}
   .bktties.final{justify-content:center;gap:20px}
   .bkt3lbl{font:800 8px/1 Arial;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);text-align:center;margin-top:6px}
-  .bktdate{font:700 7.5px/1.4 Arial;letter-spacing:.06em;text-transform:uppercase;color:#8fb3a1;
-    text-align:center;padding:3px 4px 2px;background:rgba(255,255,255,.03)}
+  .bktdate{font:700 7.5px/1.4 Arial;letter-spacing:.05em;text-transform:uppercase;color:#8fb3a1;
+    text-align:center;padding:3px 4px 2px;background:rgba(255,255,255,.03);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .bkttie{border:1px solid var(--chalk);background:rgba(255,255,255,.04);border-radius:8px;overflow:hidden;cursor:pointer;flex:0 0 auto}
   .bkttie:active{transform:scale(.99)}
   .bktside{display:flex;align-items:center;gap:5px;padding:5px 7px}
@@ -1590,7 +1591,7 @@
         ${o?`<span class="bkto">${esc(o.owner)}</span>`:""}
         <span class="bkts">${played?score:""}</span></div>`;
     };
-    const d = m.date ? m.date.toLocaleDateString(undefined,{day:"numeric",month:"short"}) : "";
+    const d = m.date ? m.date.toLocaleDateString(undefined,{weekday:"short",day:"numeric",month:"short"}) : "";
     return `<div class="bkttie" role="button" tabindex="0" data-bkt="${esc(m.id)}">`
       + (d?`<div class="bktdate">${esc(d)}</div>`:"")
       + side(m.homeName||m.home, m.home, m.hl, m.hs)
