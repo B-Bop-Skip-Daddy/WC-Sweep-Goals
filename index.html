@@ -374,6 +374,8 @@
   .bktx{margin-left:auto;border:1px solid var(--chalk);background:rgba(255,255,255,.06);color:var(--ink);cursor:pointer;
     width:30px;height:30px;border-radius:8px;font:700 14px/1 Arial;flex:0 0 auto}
   .bktscroll{flex:1;overflow:auto;-webkit-overflow-scrolling:touch}
+  .bktscroll.inline{flex:none;height:70vh;border:1px solid var(--chalk);border-radius:12px;
+    margin:0 12px 12px;background:rgba(0,0,0,.18)}
   .bkt{display:flex;gap:14px;align-items:stretch;padding:14px;width:max-content;min-width:100%}
   .bktcol{display:flex;flex-direction:column;flex:0 0 132px}
   .bktrh{font:800 9px/1 Arial;letter-spacing:.1em;text-transform:uppercase;color:#bfe6cf;text-align:center;padding:0 0 8px;flex:0 0 auto}
@@ -393,7 +395,7 @@
   .bkt3{padding:0 14px 18px}
   .bkt3 .bkttie{max-width:210px}
   /* bracket tap popover (group standings + likely teams) */
-  .bktpop{position:absolute;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.6);padding:16px}
+  .bktpop{position:fixed;inset:0;z-index:90;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.6);padding:16px}
   .bktpopcard{width:100%;max-width:440px;max-height:92%;overflow:auto;background:var(--card);border:1px solid var(--chalk);border-radius:14px;padding:12px}
   .bktpopcard .tiebody{margin:0}
   .bktpoph{display:flex;align-items:center;gap:8px;font:800 13px/1 "Arial Narrow",Arial;text-transform:uppercase;letter-spacing:.02em;margin-bottom:9px}
@@ -659,8 +661,8 @@
     <button class="bktx" id="bracketClose" aria-label="Close bracket">✕</button>
   </div>
   <div class="bktscroll" id="bracketScroll"></div>
-  <div class="bktpop hidden" id="bracketPop"></div>
 </div>
+<div class="bktpop hidden" id="bracketPop"></div>
 
 <!-- ---- first-open install nudge (shown once) ---- -->
 <div class="install-sheet" id="installSheet" role="dialog" aria-label="Add to Home Screen">
@@ -1475,23 +1477,38 @@
   }
 
   const expandedTies = new Set();   // knockout tie ids whose group drop-down is open
-  let koPredict = false;            // fill the bracket with the most-likely draw
+  let koPredict = false;            // list view: fill the bracket with the most-likely draw
+  let koView = "bracket";           // bracket | list
   function renderKnockout(){
     const card = $("koCard"); if(!card) return;
     const ko = [...completedMatches,...liveGames,...upcomingMatches]
       .map(m=>({m, round:koRound(m)})).filter(x=>x.round);
-    let html = `<div class="head"><div class="eyebrow"><span class="kicker">The bracket · who plays who</span></div>
-      <h1>The <b>Knockouts</b></h1></div>
-      <div class="barhead"><span class="t">${koPredict?"Most-likely draw":"Bracket slots"}</span>
+    let html = `<div class="head"><div class="eyebrow"><span class="kicker">The bracket · who plays who</span>
         <div class="toggle">
-          <button data-ko="off" class="${koPredict?"":"on"}">Slots</button>
-          <button data-ko="on" class="${koPredict?"on":""}">Predict</button>
+          <button data-kov="bracket" class="${koView==="bracket"?"on":""}">Bracket</button>
+          <button data-kov="list" class="${koView==="list"?"on":""}">List</button>
         </div></div>
-      <div class="bktprompt"><button class="bktbtn" id="viewBracketBtn">📊 View full bracket</button><span>or turn your phone sideways</span></div>`;
+      <h1>The <b>Knockouts</b></h1></div>`;
     if(!ko.length){
       html += `<div class="koempty">The bracket appears here once the schedule is in.</div>`;
       card.innerHTML = html; return;
     }
+    if(koView==="bracket"){
+      const prev = card.querySelector(".bktscroll.inline");
+      const sl = prev?prev.scrollLeft:0, st = prev?prev.scrollTop:0;
+      html += `<div class="bktprompt"><button class="bktbtn" id="viewBracketBtn">⤢ Full screen</button><span>turn sideways for more · tap a tie for the group</span></div>`;
+      html += `<div class="bktscroll inline">${bracketHTML()}</div>`;
+      card.innerHTML = html;
+      const sc = card.querySelector(".bktscroll.inline");
+      if(sc){ sc.scrollLeft=sl; sc.scrollTop=st; }
+      return;
+    }
+    // ---- list view: round-by-round, with the predict toggle + slot drop-downs ----
+    html += `<div class="barhead"><span class="t">${koPredict?"Most-likely draw":"Bracket slots"}</span>
+        <div class="toggle">
+          <button data-ko="off" class="${koPredict?"":"on"}">Slots</button>
+          <button data-ko="on" class="${koPredict?"on":""}">Predict</button>
+        </div></div>`;
     const preds = koPredict ? predictR32() : null;
     if(koPredict) html += `<div class="swsub">From the group tables so far — winners, runners-up and the best third-placed sides. Deeper rounds fill in as teams come through.</div>`;
 
@@ -1572,8 +1589,7 @@
       + side(m.homeName||m.home, m.home, m.hl, m.hs)
       + side(m.awayName||m.away, m.away, m.al, m.as) + `</div>`;
   }
-  function renderBracket(){
-    const sc=$("bracketScroll"); if(!sc) return;
+  function bracketHTML(){
     const B=buildBracket();
     const cols=[["Round of 32","R32"],["Round of 16","Round of 16"],["Quarterfinal","Quarters"],["Semifinal","Semis"],["Final","Final"]];
     let html=`<div class="bkt">`;
@@ -1584,7 +1600,12 @@
     });
     html+=`</div>`;
     if((B["Third Place"]||[]).length) html+=`<div class="bkt3"><div class="bktrh">Third place</div>${bktTie(B["Third Place"][0])}</div>`;
-    sc.innerHTML=html;
+    return html;
+  }
+  function renderBracket(){
+    const sc=$("bracketScroll"); if(!sc) return;
+    const l=sc.scrollLeft, t=sc.scrollTop;
+    sc.innerHTML=bracketHTML(); sc.scrollLeft=l; sc.scrollTop=t;   // keep pan across refreshes
   }
   function showBracketPop(m){
     const rh=sideRef(m.homeName||m.home), ra=sideRef(m.awayName||m.away);
@@ -1776,19 +1797,23 @@
 
   // knockout: flip slots/predict, or tap a tie to drop down its group tables
   const toggleTie = id => { expandedTies.has(id)?expandedTies.delete(id):expandedTies.add(id); renderKnockout(); };
+  const findMatch = id => [...completedMatches,...liveGames,...upcomingMatches].find(x=>String(x.id)===String(id));
   $("koCard").addEventListener("click", e=>{
+    const kov=e.target.closest("[data-kov]"); if(kov){ koView=kov.dataset.kov; renderKnockout(); return; }
     if(e.target.closest("#viewBracketBtn")){ bktManual=true; showBracket(); return; }
+    const bk=e.target.closest("[data-bkt]"); if(bk){ const m=findMatch(bk.dataset.bkt); if(m) showBracketPop(m); return; }
     const b = e.target.closest("[data-ko]"); if(b){ koPredict = b.dataset.ko==="on"; renderKnockout(); return; }
     const t = e.target.closest("[data-tie]"); if(t) toggleTie(t.dataset.tie);
   });
-  // bracket overlay: rotate a phone sideways, or use the button
+  // bracket overlay (rotate sideways / full-screen button) + the shared popover
   window.addEventListener("resize", syncBracket);
   window.addEventListener("orientationchange", syncBracket);
   $("bracketClose").addEventListener("click", ()=>{ bktManual=false; hideBracket(); });
   $("bracketOverlay").addEventListener("click", e=>{
-    if(e.target.id==="bracketPop" || e.target.closest("#bktPopClose")){ $("bracketPop").classList.add("hidden"); return; }
-    const t=e.target.closest("[data-bkt]");
-    if(t){ const m=[...completedMatches,...liveGames,...upcomingMatches].find(x=>String(x.id)===t.dataset.bkt); if(m) showBracketPop(m); }
+    const t=e.target.closest("[data-bkt]"); if(t){ const m=findMatch(t.dataset.bkt); if(m) showBracketPop(m); }
+  });
+  $("bracketPop").addEventListener("click", e=>{
+    if(e.target.id==="bracketPop" || e.target.closest("#bktPopClose")) $("bracketPop").classList.add("hidden");
   });
   syncBracket();
   $("koCard").addEventListener("keydown", e=>{
