@@ -358,6 +358,47 @@
   .fxlink.inline{padding:4px 8px;font-size:9px;gap:4px;border-radius:7px}
   .fxlink:active{transform:translateY(1px)}
 
+  /* ---- knockout: view-bracket prompt ---- */
+  .bktprompt{display:flex;align-items:center;gap:10px;margin:2px 14px 8px;padding:10px 12px;border-radius:12px;
+    background:linear-gradient(90deg,rgba(245,197,24,.14),rgba(245,197,24,.03));border:1px solid rgba(245,197,24,.3)}
+  .bktbtn{border:1px solid rgba(245,197,24,.45);background:rgba(245,197,24,.14);color:var(--gold);cursor:pointer;
+    border-radius:9px;padding:9px 13px;font:800 11px/1 Arial;letter-spacing:.04em;text-transform:uppercase;flex:0 0 auto}
+  .bktbtn:active{transform:translateY(1px)}
+  .bktprompt span{font:600 11px/1.3 Arial;color:var(--muted)}
+
+  /* ---- the bracket overlay ---- */
+  .bktoverlay{position:fixed;inset:0;z-index:80;background:var(--pitch);display:flex;flex-direction:column}
+  .bkttop{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--chalk);flex:0 0 auto}
+  .bkttitle{font:800 14px/1 "Arial Narrow",Arial;text-transform:uppercase;letter-spacing:.04em;color:var(--gold)}
+  .bkthint{font:600 10px/1.2 Arial;color:var(--muted)}
+  .bktx{margin-left:auto;border:1px solid var(--chalk);background:rgba(255,255,255,.06);color:var(--ink);cursor:pointer;
+    width:30px;height:30px;border-radius:8px;font:700 14px/1 Arial;flex:0 0 auto}
+  .bktscroll{flex:1;overflow:auto;-webkit-overflow-scrolling:touch}
+  .bkt{display:flex;gap:14px;align-items:stretch;padding:14px;width:max-content;min-width:100%}
+  .bktcol{display:flex;flex-direction:column;flex:0 0 132px}
+  .bktrh{font:800 9px/1 Arial;letter-spacing:.1em;text-transform:uppercase;color:#bfe6cf;text-align:center;padding:0 0 8px;flex:0 0 auto}
+  .bktties{flex:1;display:flex;flex-direction:column}
+  .bktties.r32{gap:7px}
+  .bktties:not(.r32){justify-content:space-around}
+  .bkttie{border:1px solid var(--chalk);background:rgba(255,255,255,.04);border-radius:8px;overflow:hidden;cursor:pointer;flex:0 0 auto}
+  .bkttie:active{transform:scale(.99)}
+  .bktside{display:flex;align-items:center;gap:5px;padding:5px 7px}
+  .bktside + .bktside{border-top:1px solid var(--chalk)}
+  .bktside.slot{opacity:.55}
+  .bktt{display:flex;align-items:center;gap:5px;flex:1;min-width:0;font:800 11px/1.05 "Arial Narrow",Arial;
+    text-transform:uppercase;letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bktt img{width:15px;height:10px;object-fit:contain;flex:0 0 auto}
+  .bkto{font:700 8px/1 Arial;color:var(--gold);flex:0 0 auto;max-width:48px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bkts{font:900 12px/1 Arial;font-variant-numeric:tabular-nums;flex:0 0 auto;min-width:9px;text-align:right}
+  .bkt3{padding:0 14px 18px}
+  .bkt3 .bkttie{max-width:210px}
+  /* bracket tap popover (group standings + likely teams) */
+  .bktpop{position:absolute;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.6);padding:16px}
+  .bktpopcard{width:100%;max-width:440px;max-height:92%;overflow:auto;background:var(--card);border:1px solid var(--chalk);border-radius:14px;padding:12px}
+  .bktpopcard .tiebody{margin:0}
+  .bktpoph{display:flex;align-items:center;gap:8px;font:800 13px/1 "Arial Narrow",Arial;text-transform:uppercase;letter-spacing:.02em;margin-bottom:9px}
+  .bktpoph .bktx{margin-left:auto;width:26px;height:26px;font-size:12px}
+
   .hidden{display:none !important}
 
   /* ============ swipe deck (thumb across to the next competition) ============ */
@@ -608,6 +649,17 @@
   <div class="dots" id="dots"><i class="on"></i><i></i><i></i><i></i><i></i></div>
 
   <button class="installbtn hidden" id="installBtn">📲 Add to Home Screen</button>
+</div>
+
+<!-- ---- the bracket (landscape / button) ---- -->
+<div class="bktoverlay hidden" id="bracketOverlay" role="dialog" aria-label="Knockout bracket">
+  <div class="bkttop">
+    <span class="bkttitle">🏆 The Bracket</span>
+    <span class="bkthint">tap a tie for the group &amp; likely teams</span>
+    <button class="bktx" id="bracketClose" aria-label="Close bracket">✕</button>
+  </div>
+  <div class="bktscroll" id="bracketScroll"></div>
+  <div class="bktpop hidden" id="bracketPop"></div>
 </div>
 
 <!-- ---- first-open install nudge (shown once) ---- -->
@@ -1434,7 +1486,8 @@
         <div class="toggle">
           <button data-ko="off" class="${koPredict?"":"on"}">Slots</button>
           <button data-ko="on" class="${koPredict?"on":""}">Predict</button>
-        </div></div>`;
+        </div></div>
+      <div class="bktprompt"><button class="bktbtn" id="viewBracketBtn">📊 View full bracket</button><span>or turn your phone sideways</span></div>`;
     if(!ko.length){
       html += `<div class="koempty">The bracket appears here once the schedule is in.</div>`;
       card.innerHTML = html; return;
@@ -1476,6 +1529,78 @@
     card.innerHTML = html;
   }
 
+  // ===================== THE BRACKET (landscape / button view) =====================
+  // Tree topology from the feed wiring: each round is numbered by event-id order,
+  // later rounds reference earlier ones. This in-order leaf layout puts feeders
+  // adjacent so the columns read as a connected bracket. (1-indexed into id-sorted.)
+  const BKT_ORDER = {
+    "Round of 32":[1,3,2,5,11,12,9,10,4,6,7,8,13,15,14,16],
+    "Round of 16":[1,2,5,6,3,4,7,8],
+    "Quarterfinal":[1,2,3,4], "Semifinal":[1,2], "Final":[1], "Third Place":[1]
+  };
+  function buildBracket(){
+    const byRound={};
+    [...completedMatches,...liveGames,...upcomingMatches].forEach(m=>{
+      const r=koRound(m); if(!r) return; (byRound[r]=byRound[r]||[]).push(m);
+    });
+    const out={};
+    Object.keys(BKT_ORDER).forEach(r=>{
+      const sorted=[...(byRound[r]||[])].sort((a,b)=>(+a.id)-(+b.id));
+      out[r]=BKT_ORDER[r].map(n=>sorted[n-1]).filter(Boolean);
+    });
+    return out;
+  }
+  const bktSlot = name => {
+    let m;
+    if(m=/^Group ([A-L]) Winner$/.exec(name)) return m[1]+"1";
+    if(m=/^Group ([A-L]) 2nd Place$/.exec(name)) return m[1]+"2";
+    if(/^Third Place/.test(name)) return "3rd";
+    if(/Round of|Quarterfinal|Semifinal/.test(name)) return "—";
+    return name;
+  };
+  function bktTie(m){
+    if(!m) return "";
+    const played = m.detail || m.clock;
+    const side=(full,abbr,logo,score)=>{
+      const real=isReal(full), o=real?ownerOf(full):null;
+      return `<div class="bktside${real?"":" slot"}">
+        <span class="bktt">${real?flag(logo):""}${real?esc(abbr):esc(bktSlot(full))}</span>
+        ${o?`<span class="bkto">${esc(o.owner)}</span>`:""}
+        <span class="bkts">${played?score:""}</span></div>`;
+    };
+    return `<div class="bkttie" role="button" tabindex="0" data-bkt="${esc(m.id)}">`
+      + side(m.homeName||m.home, m.home, m.hl, m.hs)
+      + side(m.awayName||m.away, m.away, m.al, m.as) + `</div>`;
+  }
+  function renderBracket(){
+    const sc=$("bracketScroll"); if(!sc) return;
+    const B=buildBracket();
+    const cols=[["Round of 32","R32"],["Round of 16","Round of 16"],["Quarterfinal","Quarters"],["Semifinal","Semis"],["Final","Final"]];
+    let html=`<div class="bkt">`;
+    cols.forEach(([key,label])=>{
+      html+=`<div class="bktcol"><div class="bktrh">${label}</div><div class="bktties ${key==="Round of 32"?"r32":""}">`;
+      (B[key]||[]).forEach(m=> html+=bktTie(m));
+      html+=`</div></div>`;
+    });
+    html+=`</div>`;
+    if((B["Third Place"]||[]).length) html+=`<div class="bkt3"><div class="bktrh">Third place</div>${bktTie(B["Third Place"][0])}</div>`;
+    sc.innerHTML=html;
+  }
+  function showBracketPop(m){
+    const rh=sideRef(m.homeName||m.home), ra=sideRef(m.awayName||m.away);
+    $("bracketPop").innerHTML=`<div class="bktpopcard">
+      <div class="bktpoph"><span>${esc(m.home)} v ${esc(m.away)}</span><button class="bktx" id="bktPopClose" aria-label="Close">✕</button></div>
+      <div class="tiebody">${sideColHTML(rh)}${sideColHTML(ra)}</div></div>`;
+    $("bracketPop").classList.remove("hidden");
+  }
+  let bktManual=false;
+  function showBracket(){ renderBracket(); $("bracketOverlay").classList.remove("hidden"); }
+  function hideBracket(){ $("bracketOverlay").classList.add("hidden"); $("bracketPop").classList.add("hidden"); }
+  function syncBracket(){
+    const land = window.matchMedia("(orientation:landscape) and (max-height:600px)").matches;
+    if(land || bktManual) showBracket(); else hideBracket();
+  }
+
   // best-effort flag/logo for a team name, from standings or finished matches
   function teamLogo(name){
     const k = teamKey(name);
@@ -1515,6 +1640,7 @@
     renderFixtures();
     renderKnockout();
     renderAlbum();
+    if(!$("bracketOverlay").classList.contains("hidden")) renderBracket();
     $("goalsSub").textContent = liveGames.length
       ? `${liveGames.length} match${liveGames.length>1?"es":""} live now`
       : "across the tournament";
@@ -1651,9 +1777,20 @@
   // knockout: flip slots/predict, or tap a tie to drop down its group tables
   const toggleTie = id => { expandedTies.has(id)?expandedTies.delete(id):expandedTies.add(id); renderKnockout(); };
   $("koCard").addEventListener("click", e=>{
+    if(e.target.closest("#viewBracketBtn")){ bktManual=true; showBracket(); return; }
     const b = e.target.closest("[data-ko]"); if(b){ koPredict = b.dataset.ko==="on"; renderKnockout(); return; }
     const t = e.target.closest("[data-tie]"); if(t) toggleTie(t.dataset.tie);
   });
+  // bracket overlay: rotate a phone sideways, or use the button
+  window.addEventListener("resize", syncBracket);
+  window.addEventListener("orientationchange", syncBracket);
+  $("bracketClose").addEventListener("click", ()=>{ bktManual=false; hideBracket(); });
+  $("bracketOverlay").addEventListener("click", e=>{
+    if(e.target.id==="bracketPop" || e.target.closest("#bktPopClose")){ $("bracketPop").classList.add("hidden"); return; }
+    const t=e.target.closest("[data-bkt]");
+    if(t){ const m=[...completedMatches,...liveGames,...upcomingMatches].find(x=>String(x.id)===t.dataset.bkt); if(m) showBracketPop(m); }
+  });
+  syncBracket();
   $("koCard").addEventListener("keydown", e=>{
     if(e.key!=="Enter" && e.key!==" ") return;
     const t = e.target.closest("[data-tie]"); if(t){ e.preventDefault(); toggleTie(t.dataset.tie); }
