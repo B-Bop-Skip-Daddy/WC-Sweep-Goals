@@ -565,6 +565,8 @@
   .gtr .gp{font:800 11px/1 Arial;font-variant-numeric:tabular-nums;white-space:nowrap}
   .gtr .gp small{font:600 6.5px/1 Arial;color:var(--muted);margin-left:1px}
   .gtnote{font:600 9.5px/1.3 Arial;color:var(--muted);padding:4px 2px}
+  .glive{font:800 7px/1 Arial;letter-spacing:.04em;color:var(--good);margin-left:4px}
+  .gtr.lv .gp{color:var(--good)}   /* provisional points from an in-progress game */
 </style>
 </head>
 <body>
@@ -1253,15 +1255,16 @@
     return `<div class="fxlinks"><a class="fxlink wt" target="_blank" rel="noopener" href="https://www.google.com/search?q=${q}+where+to+watch+tv+channel">📺 Where to watch</a></div>`;
   }
   function fxTieBody(m){
-    const rh = sideRef(m.homeName||m.home), ra = sideRef(m.awayName||m.away);
+    const hn = m.homeName||m.home, an = m.awayName||m.away;
+    const rh = sideRef(hn), ra = sideRef(an);
     const pos = r => r.kind==="pos";
     let cols = "";
     if(pos(rh) && pos(ra) && rh.grp===ra.grp){          // same group → one table, both highlighted
-      const ranks = new Set([rh.rank, ra.rank]);
-      cols = groupColHTML(rh.grp, t=>ranks.has(t.rank));
+      const keys = new Set([teamKey(hn), teamKey(an)]);
+      cols = groupColHTML(rh.grp, t=>keys.has(teamKey(t.name)));
     } else {
-      if(pos(rh)) cols += groupColHTML(rh.grp, t=>t.rank===rh.rank);
-      if(pos(ra)) cols += groupColHTML(ra.grp, t=>t.rank===ra.rank);
+      if(pos(rh)) cols += groupColHTML(rh.grp, t=>teamKey(t.name)===teamKey(hn));
+      if(pos(ra)) cols += groupColHTML(ra.grp, t=>teamKey(t.name)===teamKey(an));
     }
     const groups = cols ? `<div class="tiebody">${cols}</div>` : "";
     return groups + fxMatchPanel(m) + fxLinks(m);   // standings on top, then the score line
@@ -1417,8 +1420,8 @@
     const side = name => {
       if(isReal(name)){ const o=ownerOf(name); return {name, owner:o&&o.owner, logo:null}; }
       let m;
-      if(m=/^Group ([A-L]) Winner$/.exec(name)){ const t=(groupTables.get(m[1])||[])[0]; return t&&teamObj(t); }
-      if(m=/^Group ([A-L]) 2nd Place$/.exec(name)){ const t=(groupTables.get(m[1])||[])[1]; return t&&teamObj(t); }
+      if(m=/^Group ([A-L]) Winner$/.exec(name)){ const g=liveGroup(m[1]); const t=g&&g.entries[0]; return t&&teamObj(t); }
+      if(m=/^Group ([A-L]) 2nd Place$/.exec(name)){ const g=liveGroup(m[1]); const t=g&&g.entries[1]; return t&&teamObj(t); }
       if(m=/^Third Place Group ([A-L\/]+)$/.exec(name)){ const t=pickThird(m[1].split("/")); return t&&teamObj(t); }
       return null;
     };
@@ -1441,10 +1444,29 @@
     return name;
   };
 
-  // third-placed teams across all groups, best first (group-stage ranking rules)
+  // a group's table "as it stands": the base standings with any in-progress group
+  // game applied (provisional points), then re-ranked. Returns {entries, live}.
+  function liveGroup(L){
+    const base = groupTables.get(L); if(!base) return null;
+    const e = base.map(t=>({...t, ga:(t.gf||0)-(t.gd||0), live:false}));
+    let live=false;
+    liveGames.forEach(m=>{
+      if(koRound(m)) return;                       // group-stage games only
+      const h=e.find(t=>teamKey(t.name)===teamKey(m.homeName||m.home));
+      const a=e.find(t=>teamKey(t.name)===teamKey(m.awayName||m.away));
+      if(!h||!a) return;                           // not this group's live game
+      live=true;
+      h.gf+=m.hs; h.ga+=m.as; a.gf+=m.as; a.ga+=m.hs;
+      if(m.hs>m.as) h.pts+=3; else if(m.hs<m.as) a.pts+=3; else { h.pts+=1; a.pts+=1; }
+      h.gd=h.gf-h.ga; a.gd=a.gf-a.ga; h.live=a.live=true;
+    });
+    if(live){ e.sort((x,y)=> y.pts-x.pts || y.gd-x.gd || y.gf-x.gf); e.forEach((t,i)=>t.rank=i+1); }
+    return {entries:e, live};
+  }
+  // third-placed teams across all groups, best first (live-aware)
   function bestThirds(){
-    return [...groupTables.entries()].map(([L,a])=> a[2] && {...a[2], grp:L}).filter(Boolean)
-      .sort((x,y)=> y.pts-x.pts || y.gd-x.gd || y.gf-x.gf);
+    return [...groupTables.keys()].map(L=>{ const g=liveGroup(L); const t=g&&g.entries[2]; return t&&{...t, grp:L}; })
+      .filter(Boolean).sort((x,y)=> y.pts-x.pts || y.gd-x.gd || y.gf-x.gf);
   }
   const qualifiedThirdSet = () => new Set(bestThirds().slice(0,8).map(t=>t.grp));
 
@@ -1456,19 +1478,19 @@
     if(m=/^Third Place Group ([A-L\/]+)$/.exec(rawName)) return {kind:"third", groups:m[1].split("/")};
     if(isReal(rawName)){                              // a team already placed — find its group
       const k=teamKey(rawName);
-      for(const [L,arr] of groupTables){ const t=arr.find(x=>teamKey(x.name)===k); if(t) return {kind:"pos", grp:L, rank:t.rank}; }
+      for(const L of groupTables.keys()){ const g=liveGroup(L); const t=g&&g.entries.find(x=>teamKey(x.name)===k); if(t) return {kind:"pos", grp:L, rank:t.rank, team:rawName}; }
       return {kind:"name", name:rawName};
     }
     return {kind:"ref", label:prettySlot(rawName)};
   }
 
-  // a group's four teams in current order, the relevant position highlighted
+  // a group's four teams "as it stands", the relevant position/team highlighted
   function groupColHTML(grp, hi){
-    const arr = groupTables.get(grp) || [];
+    const g = liveGroup(grp), arr = g ? g.entries : [];
     const isHi = typeof hi==="function" ? hi : (t=>t.rank===hi);   // hi: a rank, or a predicate
     if(!arr.length) return `<div class="gtbl"><div class="gth">Group ${grp}</div><div class="gtnote">Table loading…</div></div>`;
-    return `<div class="gtbl"><div class="gth">Group ${grp}</div>` +
-      arr.map(t=>`<div class="gtr${isHi(t)?" hl":""}"><span class="gr">${t.rank}</span><span class="gn">${esc(t.name)}</span><span class="gp">${t.pts}<small>pts</small></span></div>`).join("") +
+    return `<div class="gtbl"><div class="gth">Group ${grp}${g.live?` <span class="glive">● live</span>`:""}</div>` +
+      arr.map(t=>`<div class="gtr${isHi(t)?" hl":""}${t.live?" lv":""}"><span class="gr">${t.rank}</span><span class="gn">${esc(t.name)}</span><span class="gp">${t.pts}<small>pts</small></span></div>`).join("") +
       `</div>`;
   }
   // the third-placed contenders for a best-third slot; current qualifiers highlighted
@@ -1479,7 +1501,7 @@
         : `<div class="gtnote">Table loading…</div>`) + `</div>`;
   }
   function sideColHTML(ref){
-    if(ref.kind==="pos")   return groupColHTML(ref.grp, ref.rank);
+    if(ref.kind==="pos")   return groupColHTML(ref.grp, ref.team ? (t=>teamKey(t.name)===teamKey(ref.team)) : ref.rank);
     if(ref.kind==="third") return thirdColHTML(ref.groups);
     return `<div class="gtbl"><div class="gth">${esc(ref.label||ref.name||"TBD")}</div><div class="gtnote">Set once teams advance.</div></div>`;
   }
