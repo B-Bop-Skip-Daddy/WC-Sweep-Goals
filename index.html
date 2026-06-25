@@ -382,6 +382,10 @@
   .bktties{flex:1;display:flex;flex-direction:column}
   .bktties.r32{gap:7px}
   .bktties:not(.r32){justify-content:space-around}
+  .bktties.final{justify-content:center;gap:20px}
+  .bkt3lbl{font:800 8px/1 Arial;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);text-align:center;margin-top:6px}
+  .bktdate{font:700 7.5px/1.4 Arial;letter-spacing:.06em;text-transform:uppercase;color:#8fb3a1;
+    text-align:center;padding:3px 4px 2px;background:rgba(255,255,255,.03)}
   .bkttie{border:1px solid var(--chalk);background:rgba(255,255,255,.04);border-radius:8px;overflow:hidden;cursor:pointer;flex:0 0 auto}
   .bkttie:active{transform:scale(.99)}
   .bktside{display:flex;align-items:center;gap:5px;padding:5px 7px}
@@ -398,7 +402,8 @@
   .bktpop{position:fixed;inset:0;z-index:90;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.6);padding:16px}
   .bktpopcard{width:100%;max-width:440px;max-height:92%;overflow:auto;background:var(--card);border:1px solid var(--chalk);border-radius:14px;padding:12px}
   .bktpopcard .tiebody{margin:0}
-  .bktpoph{display:flex;align-items:center;gap:8px;font:800 13px/1 "Arial Narrow",Arial;text-transform:uppercase;letter-spacing:.02em;margin-bottom:9px}
+  .bktpoph{display:flex;align-items:center;gap:8px;font:800 13px/1 "Arial Narrow",Arial;text-transform:uppercase;letter-spacing:.02em;margin-bottom:6px}
+  .bktpopwhen{font:700 11px/1.3 Arial;color:#bfe6cf;margin-bottom:10px}
   .bktpoph .bktx{margin-left:auto;width:26px;height:26px;font-size:12px}
 
   .hidden{display:none !important}
@@ -1496,7 +1501,7 @@
     if(koView==="bracket"){
       const prev = card.querySelector(".bktscroll.inline");
       const sl = prev?prev.scrollLeft:0, st = prev?prev.scrollTop:0;
-      html += `<div class="bktprompt"><button class="bktbtn" id="viewBracketBtn">⤢ Full screen</button><span>turn sideways for more · tap a tie for the group</span></div>`;
+      html += `<div class="bktprompt"><button class="bktbtn" id="viewBracketBtn">⤢ Full screen</button><span>tap any tie for the group, likely teams &amp; kick-off</span></div>`;
       html += `<div class="bktscroll inline">${bracketHTML()}</div>`;
       card.innerHTML = html;
       const sc = card.querySelector(".bktscroll.inline");
@@ -1585,7 +1590,9 @@
         ${o?`<span class="bkto">${esc(o.owner)}</span>`:""}
         <span class="bkts">${played?score:""}</span></div>`;
     };
+    const d = m.date ? m.date.toLocaleDateString(undefined,{day:"numeric",month:"short"}) : "";
     return `<div class="bkttie" role="button" tabindex="0" data-bkt="${esc(m.id)}">`
+      + (d?`<div class="bktdate">${esc(d)}</div>`:"")
       + side(m.homeName||m.home, m.home, m.hl, m.hs)
       + side(m.awayName||m.away, m.away, m.al, m.as) + `</div>`;
   }
@@ -1594,13 +1601,14 @@
     const cols=[["Round of 32","R32"],["Round of 16","Round of 16"],["Quarterfinal","Quarters"],["Semifinal","Semis"],["Final","Final"]];
     let html=`<div class="bkt">`;
     cols.forEach(([key,label])=>{
-      html+=`<div class="bktcol"><div class="bktrh">${label}</div><div class="bktties ${key==="Round of 32"?"r32":""}">`;
+      const cls = key==="Round of 32"?"r32":(key==="Final"?"final":"");
+      html+=`<div class="bktcol"><div class="bktrh">${label}</div><div class="bktties ${cls}">`;
       (B[key]||[]).forEach(m=> html+=bktTie(m));
+      if(key==="Final" && (B["Third Place"]||[]).length)        // 3rd-place playoff sits by the final
+        html+=`<div class="bkt3lbl">3rd place</div>${bktTie(B["Third Place"][0])}`;
       html+=`</div></div>`;
     });
-    html+=`</div>`;
-    if((B["Third Place"]||[]).length) html+=`<div class="bkt3"><div class="bktrh">Third place</div>${bktTie(B["Third Place"][0])}</div>`;
-    return html;
+    return html+`</div>`;
   }
   function renderBracket(){
     const sc=$("bracketScroll"); if(!sc) return;
@@ -1609,8 +1617,12 @@
   }
   function showBracketPop(m){
     const rh=sideRef(m.homeName||m.home), ra=sideRef(m.awayName||m.away);
+    const when = m.date ? `${m.date.toLocaleDateString(undefined,{weekday:"short",day:"numeric",month:"short"})} · ${m.date.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"})}` : "";
+    const status = m.detail ? `${m.home} ${m.hs}–${m.as} ${m.away} · ${m.detail}`
+                 : m.clock  ? `${m.home} ${m.hs}–${m.as} ${m.away} · ${m.clock}` : when;
     $("bracketPop").innerHTML=`<div class="bktpopcard">
       <div class="bktpoph"><span>${esc(m.home)} v ${esc(m.away)}</span><button class="bktx" id="bktPopClose" aria-label="Close">✕</button></div>
+      ${status?`<div class="bktpopwhen">${esc(status)}</div>`:""}
       <div class="tiebody">${sideColHTML(rh)}${sideColHTML(ra)}</div></div>`;
     $("bracketPop").classList.remove("hidden");
   }
