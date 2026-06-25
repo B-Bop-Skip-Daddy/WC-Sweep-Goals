@@ -391,7 +391,8 @@
   .bkttie:active{transform:scale(.99)}
   .bktside{display:flex;align-items:center;gap:5px;padding:5px 7px}
   .bktside + .bktside{border-top:1px solid var(--chalk)}
-  .bktside.slot{opacity:.55}
+  .bktside.slot{opacity:.6}
+  .bktside.slot .bktt{font-size:9.5px;line-height:1.12;white-space:normal;overflow:visible;text-overflow:clip}
   .bktt{display:flex;align-items:center;gap:5px;flex:1;min-width:0;font:800 11px/1.05 "Arial Narrow",Arial;
     text-transform:uppercase;letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .bktt img{width:15px;height:10px;object-fit:contain;flex:0 0 auto}
@@ -1575,9 +1576,9 @@
   }
   const bktSlot = name => {
     let m;
-    if(m=/^Group ([A-L]) Winner$/.exec(name)) return m[1]+"1";
-    if(m=/^Group ([A-L]) 2nd Place$/.exec(name)) return m[1]+"2";
-    if(/^Third Place/.test(name)) return "3rd";
+    if(m=/^Group ([A-L]) Winner$/.exec(name)) return "Winner Group "+m[1];
+    if(m=/^Group ([A-L]) 2nd Place$/.exec(name)) return "Runner-up Group "+m[1];
+    if(/^Third Place/.test(name)) return "Best 3rd";
     if(/Round of|Quarterfinal|Semifinal/.test(name)) return "—";
     return name;
   };
