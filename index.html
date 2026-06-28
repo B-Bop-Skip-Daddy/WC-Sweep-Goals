@@ -1577,12 +1577,13 @@
   }
 
   // ===================== THE BRACKET (landscape / button view) =====================
-  // Tree topology from the feed wiring: each round is numbered by event-id order,
-  // later rounds reference earlier ones. This in-order leaf layout puts feeders
-  // adjacent so the columns read as a connected bracket. (1-indexed into id-sorted.)
+  // Tree topology from the OFFICIAL FIFA 2026 bracket wiring (verified against
+  // Wikipedia + the live ties). Note ESPN numbers its R32 by FIFA match number
+  // (M73=#1 … M88=#16), NOT event-id order — so this leaf layout is built from
+  // the official feeder map, then mapped to each round's id-sorted index.
   const BKT_ORDER = {
-    "Round of 32":[1,3,2,5,11,12,9,10,4,6,7,8,13,15,14,16],
-    "Round of 16":[1,2,5,6,3,4,7,8],
+    "Round of 32":[4,7,1,3,11,12,9,8,2,5,6,10,15,14,13,16],
+    "Round of 16":[2,1,5,6,3,4,8,7],
     "Quarterfinal":[1,2,3,4], "Semifinal":[1,2], "Final":[1], "Third Place":[1]
   };
   function buildBracket(){
